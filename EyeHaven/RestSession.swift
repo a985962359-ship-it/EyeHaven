@@ -3,6 +3,102 @@ import Observation
 import SwiftUI
 import UIKit
 import UserNotifications
+import notify
+
+/// Lock / screen-off, including devices without a passcode.
+@MainActor
+final class DeviceLockMonitor {
+    static let shared = DeviceLockMonitor()
+
+    private(set) var isLocked = false
+    var onChange: (() -> Void)?
+
+    private var started = false
+    private var tokens: [Int32] = []
+    private var observers: [NSObjectProtocol] = []
+
+    func start() {
+        guard !started else { return }
+        started = true
+        refresh()
+        observeState("com.apple.springboard.lockstate")
+        observeState("com.apple.springboard.hasBlankedScreen")
+        observeState("com.apple.iokit.hid.displayStatus")
+        observePulse("com.apple.springboard.lockcomplete")
+        let center = NotificationCenter.default
+        observers.append(center.addObserver(
+            forName: UIApplication.protectedDataWillBecomeUnavailableNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.applyLocked(true) }
+        })
+        observers.append(center.addObserver(
+            forName: UIApplication.protectedDataDidBecomeAvailableNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.refresh() }
+        })
+    }
+
+    func refresh() {
+        applyLocked(Self.probeLocked())
+    }
+
+    /// Screen is on and the device is not locked — the user is in another app.
+    func isUsingAnotherApp() -> Bool {
+        guard UIApplication.shared.applicationState == .background else { return false }
+        if isLocked || Self.probeLocked() { return false }
+        // Only treat as leaving rest when the display reports ON.
+        // If we cannot read it, do not guess — lock/unlock must not fail a check-in.
+        guard let display = Self.notifyState("com.apple.iokit.hid.displayStatus") else { return false }
+        return display != 0
+    }
+
+    private func applyLocked(_ locked: Bool) {
+        guard isLocked != locked else { return }
+        isLocked = locked
+        onChange?()
+    }
+
+    private func observeState(_ name: String) {
+        var token: Int32 = 0
+        let status = notify_register_dispatch(name, &token, DispatchQueue.main) { [weak self] _ in
+            Task { @MainActor in self?.refresh() }
+        }
+        if status == NOTIFY_STATUS_OK {
+            tokens.append(token)
+        }
+    }
+
+    private func observePulse(_ name: String) {
+        var token: Int32 = 0
+        let status = notify_register_dispatch(name, &token, DispatchQueue.main) { [weak self] _ in
+            Task { @MainActor in self?.applyLocked(true) }
+        }
+        if status == NOTIFY_STATUS_OK {
+            tokens.append(token)
+        }
+    }
+
+    private static func probeLocked() -> Bool {
+        if !UIApplication.shared.isProtectedDataAvailable { return true }
+        if let state = notifyState("com.apple.springboard.lockstate"), state != 0 { return true }
+        if let state = notifyState("com.apple.springboard.hasBlankedScreen"), state != 0 { return true }
+        if let state = notifyState("com.apple.iokit.hid.displayStatus"), state == 0 { return true }
+        return false
+    }
+
+    private static func notifyState(_ name: String) -> UInt64? {
+        var token: Int32 = 0
+        guard notify_register_check(name, &token) == NOTIFY_STATUS_OK else { return nil }
+        defer { notify_cancel(token) }
+        var state: UInt64 = 0
+        guard notify_get_state(token, &state) == NOTIFY_STATUS_OK else { return nil }
+        return state
+    }
+}
 
 enum SessionPhase: String, Codable, Equatable {
     case idle
@@ -43,10 +139,12 @@ final class RestSession {
     private var tickTimer: Timer?
     private var leaveRestTask: Task<Void, Never>?
     private var deviceLocked = false
-    private var lockObservers: [NSObjectProtocol] = []
+    private var didObserveLock = false
     private var backgroundedAt: Date?
     private var resumedFromPauseInBackground = false
     private var stayedPausedForLock = false
+    private var stayedRestingForLock = false
+    private var leftRestForOtherApp = false
 
     var workDuration: TimeInterval { TimeInterval(workMinutes * 60) }
     var restDuration: TimeInterval { TimeInterval(restMinutes * 60) }
@@ -96,6 +194,13 @@ final class RestSession {
 
     var remainingDailySeconds: Int {
         report?.remainingSeconds(dailyLimitMinutes: dailyLimitMinutes) ?? dailyLimitMinutes * 60
+    }
+
+    /// Next work block if the child taps 开始使用 now.
+    var nextUseDuration: TimeInterval {
+        let bonus = rewardExtraRest ? (report?.nextBonusMinutes ?? 0) : 0
+        let minutes = workMinutes + bonus
+        return min(TimeInterval(minutes * 60), TimeInterval(max(0, remainingDailySeconds)))
     }
 
     var headline: String {
@@ -179,12 +284,13 @@ final class RestSession {
         blockUsed = 0
         let bonus = rewardExtraRest ? (report?.consumeBonus() ?? 0) : 0
         let minutes = workMinutes + bonus
-        let length = min(TimeInterval(minutes * 60), TimeInterval(remainingDailySeconds))
+        let length = min(TimeInterval(minutes * 60), TimeInterval(max(0, remainingDailySeconds)))
         remaining = length
         workEndsAt = date.addingTimeInterval(length)
         restDueAt = nil
         restEndsAt = nil
         checkInDeadline = nil
+        stayedRestingForLock = false
         persist()
         scheduleWorkEndAlerts()
         startTicking()
@@ -237,26 +343,33 @@ final class RestSession {
         }
     }
 
-    /// Left the rest page before rest finished.
-    func restPageDidDisappear() {
-        if phase == .resting {
-            failRest(reason: "离开了休息页")
-        }
-    }
+    /// SwiftUI also disappears when the screen locks. Leaving rest is decided after we know it is another app.
+    func restPageDidDisappear() {}
 
     func handleScenePhase(_ scenePhase: ScenePhase) {
+        DeviceLockMonitor.shared.refresh()
         switch scenePhase {
         case .active:
-            settleAfterReturningToForeground()
             cancelLeaveRestFail()
+            if leftRestForOtherApp, phase == .restDue || phase == .resting {
+                leftRestForOtherApp = false
+                failRest(reason: "离开了休息页")
+                startTicking()
+                return
+            }
+            leftRestForOtherApp = false
+            settleAfterReturningToForeground()
             startTicking()
         case .inactive:
+            cancelLeaveRestFail()
+            markRestingIfLocked()
             if phase == .paused || phase == .restDue || phase == .resting || phase == .restExtra {
                 backgroundedAt = Date()
             }
             persist()
         case .background:
             backgroundedAt = Date()
+            markRestingIfLocked()
             persist()
             UserDefaults.standard.synchronize()
             handleBackgrounded()
@@ -266,29 +379,31 @@ final class RestSession {
     }
 
     private func observeLockState() {
-        guard lockObservers.isEmpty else { return }
-        let center = NotificationCenter.default
-        let locked = center.addObserver(
-            forName: UIApplication.protectedDataWillBecomeUnavailableNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.deviceLocked = true
-                self?.cancelLeaveRestFail()
-                self?.keepPauseIfLocked()
-            }
+        DeviceLockMonitor.shared.start()
+        DeviceLockMonitor.shared.refresh()
+        guard !didObserveLock else { return }
+        didObserveLock = true
+        DeviceLockMonitor.shared.onChange = { [weak self] in
+            self?.lockStateChanged()
         }
-        let unlocked = center.addObserver(
-            forName: UIApplication.protectedDataDidBecomeAvailableNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.deviceLocked = false
-            }
+    }
+
+    private func lockStateChanged() {
+        if DeviceLockMonitor.shared.isLocked {
+            cancelLeaveRestFail()
+            markRestingIfLocked()
+            keepPauseIfLocked()
         }
-        lockObservers = [locked, unlocked]
+    }
+
+    private func markRestingIfLocked() {
+        guard DeviceLockMonitor.shared.isLocked else { return }
+        deviceLocked = true
+        if phase == .restDue || phase == .resting || phase == .restExtra {
+            stayedRestingForLock = true
+            leftRestForOtherApp = false
+            persist()
+        }
     }
 
     private func cancelLeaveRestFail() {
@@ -297,7 +412,7 @@ final class RestSession {
     }
 
     private func isScreenLocked() -> Bool {
-        deviceLocked || !UIApplication.shared.isProtectedDataAvailable
+        DeviceLockMonitor.shared.isLocked || !UIApplication.shared.isProtectedDataAvailable
     }
 
     private func keepPauseIfLocked() {
@@ -313,27 +428,29 @@ final class RestSession {
             backgroundedAt = nil
             return
         }
+        // Lock then unlock always comes back active and unlocked. That is not leaving rest.
+        if stayedRestingForLock || phase == .restDue || phase == .resting || phase == .restExtra {
+            stayedRestingForLock = false
+            backgroundedAt = nil
+            catchUp()
+            return
+        }
         let left = backgroundedAt
         let away = left.map { Date().timeIntervalSince($0) } ?? 0
         defer { backgroundedAt = nil }
         guard away >= 0.6, !isScreenLocked() else { return }
-        switch phase {
-        case .paused:
+        if phase == .paused {
             resume(at: left ?? Date())
-        case .restDue, .resting:
-            failRest(reason: "离开了休息页")
-        case .restExtra:
-            continueUseAfterLeavingExtraRest()
-        default:
-            break
         }
     }
 
     private func handleBackgrounded() {
+        DeviceLockMonitor.shared.refresh()
         if isScreenLocked() {
             if phase == .paused {
                 stayedPausedForLock = true
             }
+            markRestingIfLocked()
             return
         }
         switch phase {
@@ -364,13 +481,25 @@ final class RestSession {
         guard phase == .restDue || phase == .resting else { return }
         cancelLeaveRestFail()
         leaveRestTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(900))
+            let started = Date()
+            for _ in 0..<12 {
+                try? await Task.sleep(for: .milliseconds(100))
+                guard !Task.isCancelled else { return }
+                DeviceLockMonitor.shared.refresh()
+                markRestingIfLocked()
+                if stayedRestingForLock || isScreenLocked() { return }
+            }
             guard !Task.isCancelled else { return }
             guard phase == .restDue || phase == .resting else { return }
-            guard UIApplication.shared.applicationState == .background else { return }
-            if deviceLocked || !UIApplication.shared.isProtectedDataAvailable {
+            // Sleep across a lock-suspend takes much longer than 1.2s of wall time.
+            if Date().timeIntervalSince(started) > 2.0 {
+                stayedRestingForLock = true
+                persist()
                 return
             }
+            guard UIApplication.shared.applicationState == .background else { return }
+            guard DeviceLockMonitor.shared.isUsingAnotherApp() else { return }
+            leftRestForOtherApp = true
             failRest(reason: "离开了休息页")
         }
     }
@@ -379,13 +508,23 @@ final class RestSession {
         guard phase == .restExtra else { return }
         cancelLeaveRestFail()
         leaveRestTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(900))
+            let started = Date()
+            for _ in 0..<12 {
+                try? await Task.sleep(for: .milliseconds(100))
+                guard !Task.isCancelled else { return }
+                DeviceLockMonitor.shared.refresh()
+                markRestingIfLocked()
+                if stayedRestingForLock || isScreenLocked() { return }
+            }
             guard !Task.isCancelled else { return }
             guard phase == .restExtra else { return }
-            guard UIApplication.shared.applicationState == .background else { return }
-            if deviceLocked || !UIApplication.shared.isProtectedDataAvailable {
+            if Date().timeIntervalSince(started) > 2.0 {
+                stayedRestingForLock = true
+                persist()
                 return
             }
+            guard UIApplication.shared.applicationState == .background else { return }
+            guard DeviceLockMonitor.shared.isUsingAnotherApp() else { return }
             continueUseAfterLeavingExtraRest()
         }
     }
@@ -400,6 +539,10 @@ final class RestSession {
 
     /// Killing the process is different from locking the screen: lock keeps the app in memory.
     private func handleColdLaunch() {
+        if stayedRestingForLock, phase == .restDue || phase == .resting || phase == .restExtra {
+            catchUp()
+            return
+        }
         switch phase {
         case .paused:
             failRest(reason: "暂停时关掉了应用")
@@ -534,6 +677,8 @@ final class RestSession {
         restDueAt = nil
         restEndsAt = nil
         checkInDeadline = nil
+        stayedRestingForLock = false
+        leftRestForOtherApp = false
         persist()
         maybeNotifyQuota()
     }
@@ -580,6 +725,7 @@ final class RestSession {
         var restEndsAt: Date?
         var checkInDeadline: Date?
         var backgroundedAt: Date?
+        var stayedRestingForLock: Bool?
     }
 
     private func persist() {
@@ -591,7 +737,8 @@ final class RestSession {
             restDueAt: restDueAt,
             restEndsAt: restEndsAt,
             checkInDeadline: checkInDeadline,
-            backgroundedAt: backgroundedAt
+            backgroundedAt: backgroundedAt,
+            stayedRestingForLock: stayedRestingForLock
         )
         if let data = try? JSONEncoder().encode(snapshot) {
             UserDefaults.standard.set(data, forKey: PersistKey.snapshot)
@@ -610,6 +757,7 @@ final class RestSession {
         restEndsAt = snapshot.restEndsAt
         checkInDeadline = snapshot.checkInDeadline
         backgroundedAt = snapshot.backgroundedAt
+        stayedRestingForLock = snapshot.stayedRestingForLock ?? false
     }
 }
 

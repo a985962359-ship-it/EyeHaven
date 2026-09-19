@@ -17,8 +17,9 @@ struct HomeView: View {
                 TimerRing(
                     progress: session.progress,
                     timeText: session.phase == .idle
-                        ? TimeInterval(session.remainingDailySeconds).clockString
-                        : session.remaining(at: clock.now).clockString
+                        ? session.nextUseDuration.clockString
+                        : session.remaining(at: clock.now).clockString,
+                    caption: session.phase == .idle ? "本次使用" : "剩余"
                 )
                 .frame(width: 200, height: 200)
                 .padding(.vertical, 8)
@@ -132,7 +133,7 @@ struct HomeView: View {
     }
 
     private var headerDetail: String {
-        let distance = settings.requireDistanceCheck ? "至少 \(settings.minimumDistanceCm) 厘米" : "未开启测距"
+        let distance = settings.requireDistanceCheck ? "开始前至少 \(settings.minimumDistanceCm) 厘米" : "未开启测距"
         return "用 \(settings.workMinutes) 分 · 休息 \(settings.restMinutes) 分 · \(distance)"
     }
 
@@ -153,13 +154,9 @@ struct HomeView: View {
             case .working:
                 Button("暂停") { session.pause() }
                     .buttonStyle(HavenButtonStyle(filled: false))
-                Button("停止") { session.stopAndRest() }
-                    .buttonStyle(HavenButtonStyle(filled: false))
             case .paused:
                 Button("继续") { session.resume() }
                     .buttonStyle(HavenButtonStyle(filled: true))
-                Button("停止") { session.stopAndRest() }
-                    .buttonStyle(HavenButtonStyle(filled: false))
             case .restDue, .resting, .restExtra:
                 EmptyView()
             case .idle:

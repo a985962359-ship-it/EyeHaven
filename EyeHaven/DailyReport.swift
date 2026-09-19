@@ -12,17 +12,17 @@ struct CheckInEvent: Codable, Identifiable, Equatable {
     var summary: String {
         if !succeeded {
             if let skipReason, !skipReason.isEmpty {
-                return "未打卡 · \(skipReason)"
+                return "😭 眼睛在受伤 · \(skipReason)"
             }
-            return "未打卡"
+            return "😭 眼睛在受伤"
         }
         if bonusMinutes > 0 {
-            return "打卡成功 · 多休息 \(extraMinutes) 分 · 下次 +\(bonusMinutes) 分"
+            return "😊 爱眼成功 · 多休息 \(extraMinutes) 分 · 下次 +\(bonusMinutes) 分"
         }
         if extraMinutes > 0 {
-            return "打卡成功 · 多休息 \(extraMinutes) 分"
+            return "😊 爱眼成功 · 多休息 \(extraMinutes) 分"
         }
-        return "打卡成功"
+        return "😊 爱眼成功"
     }
 }
 

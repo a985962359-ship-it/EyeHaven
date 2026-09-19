@@ -138,15 +138,17 @@ struct ParentSettingsForm: View {
             }
 
             Section("眼睛到屏幕的距离") {
-                Toggle("开始前测一次距离", isOn: $settings.requireDistanceCheck)
+                Toggle("每次开始使用前测距离", isOn: $settings.requireDistanceCheck)
                 if settings.requireDistanceCheck {
                     Stepper(value: $settings.minimumDistanceCm, in: 30...80, step: 5) {
                         Text("至少 \(settings.minimumDistanceCm) 厘米才可以开始")
                     }
-                    Text("只在点开始时测一次，不持续开摄像头。")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
                 }
+                Text(settings.requireDistanceCheck
+                     ? "每次点「开始使用」都会测一次，测完立刻关摄像头。若机型、模拟器或摄像头导致测不过，可以关掉这项。"
+                     : "已关闭。点「开始使用」会直接进入计时，避免测距失败拦着孩子。")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
 
             Section("未休息提醒") {

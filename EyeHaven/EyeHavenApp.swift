@@ -29,6 +29,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         NotificationPresenter.shared.start()
+        Task { @MainActor in
+            DeviceLockMonitor.shared.start()
+        }
         return true
     }
 }

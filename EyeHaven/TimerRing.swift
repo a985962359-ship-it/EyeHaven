@@ -3,6 +3,7 @@ import SwiftUI
 struct TimerRing: View {
     var progress: Double
     var timeText: String
+    var caption: String = "剩余"
 
     var body: some View {
         ZStack {
@@ -25,12 +26,12 @@ struct TimerRing: View {
                     .font(.system(size: 48, weight: .light, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(Palette.dusk)
-                Text("剩余")
+                Text(caption)
                     .font(.caption)
                     .foregroundStyle(Palette.pine.opacity(0.7))
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("剩余时间 \(timeText)")
+        .accessibilityLabel("\(caption) \(timeText)")
     }
 }

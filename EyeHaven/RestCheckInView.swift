@@ -3,6 +3,8 @@ import SwiftUI
 struct RestCheckInView: View {
     @Environment(RestSession.self) private var session
     @Environment(ParentSettings.self) private var settings
+    @Environment(DailyReport.self) private var report
+    @State private var showDistanceGate = false
 
     var body: some View {
         ZStack {
@@ -44,7 +46,7 @@ struct RestCheckInView: View {
 
                 if session.phase == .restExtra {
                     Button("开始使用") {
-                        session.finishRestAndStartUsing()
+                        beginNextUse()
                     }
                     .buttonStyle(HavenButtonStyle(filled: true))
                 }
@@ -53,6 +55,27 @@ struct RestCheckInView: View {
         }
         .onAppear {
             session.restPageDidAppear()
+        }
+        .fullScreenCover(isPresented: $showDistanceGate) {
+            DistanceGateView(
+                thresholdCm: settings.minimumDistanceCm,
+                onPass: {
+                    showDistanceGate = false
+                    report.recordDistancePass()
+                    session.finishRestAndStartUsing()
+                },
+                onCancel: {
+                    showDistanceGate = false
+                }
+            )
+        }
+    }
+
+    private func beginNextUse() {
+        if settings.requireDistanceCheck {
+            showDistanceGate = true
+        } else {
+            session.finishRestAndStartUsing()
         }
     }
 
