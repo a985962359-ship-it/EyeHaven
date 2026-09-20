@@ -51,7 +51,7 @@ enum ParentNotifier {
         let minutes = max(1, Int(graceSeconds / 60))
         let content = UNMutableNotificationContent()
         content.title = "该休息打卡了"
-        content.body = "请打开 EyeHaven，在 \(minutes) 分钟内留在休息页。iOS 不能把休息页盖在其他 App 上。"
+        content.body = "请打开 EyeHaven，在 \(minutes) 分钟内去休息页。"
         content.sound = .default
         content.interruptionLevel = .timeSensitive
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: delay, repeats: false)

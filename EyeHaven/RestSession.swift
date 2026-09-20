@@ -401,6 +401,8 @@ final class RestSession {
     func pause() {
         guard phase == .working else { return }
         catchUp()
+        // Time may have just run out; catchUp already moved to rest.
+        guard phase == .working else { return }
         flushUsage(force: true)
         workLength = blockUsed + remaining
         phase = .paused
