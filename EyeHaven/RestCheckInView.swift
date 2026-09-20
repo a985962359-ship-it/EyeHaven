@@ -35,6 +35,7 @@ struct RestCheckInView: View {
                             restDuration: session.restDuration,
                             sessionEndDate: session.restAnchorDate,
                             countUp: session.phase == .restExtra,
+                            frozenRemaining: session.restLeaveDisplayFrozen,
                             fontSize: HavenLayout.restTimerFont
                         )
                         .frame(maxWidth: .infinity)
@@ -134,12 +135,12 @@ struct RestCheckInView: View {
         }
         if session.phase == .restDue {
             return settings.restStoriesEnabled
-                ? "打开这一页才开始休息。开始后锁屏可以继续歇。切走会马上提醒你回来，10 秒内回来不算失败。想听故事就点播放。"
-                : "打开这一页才开始休息。开始后锁屏可以继续歇。切走会马上提醒你回来，10 秒内回来不算失败。"
+                ? "打开这一页才开始休息。开始后锁屏可以继续歇。切走会马上提醒你回来，10 秒内回来不算失败，超过 10 秒再回来会记失败。想听故事就点播放。"
+                : "打开这一页才开始休息。开始后锁屏可以继续歇。切走会马上提醒你回来，10 秒内回来不算失败，超过 10 秒再回来会记失败。"
         }
         return settings.restStoriesEnabled
-            ? "休息已经开始。请留在这一页或锁屏。切走会马上提醒你回来，10 秒内回来不算失败。想听故事就点播放。"
-            : "休息已经开始。请留在这一页或锁屏。切走会马上提醒你回来，10 秒内回来不算失败。"
+            ? "休息已经开始。请留在这一页或锁屏。切走会马上提醒你回来，10 秒内回来不算失败，超过 10 秒再回来会记失败。想听故事就点播放。"
+            : "休息已经开始。请留在这一页或锁屏。切走会马上提醒你回来，10 秒内回来不算失败，超过 10 秒再回来会记失败。"
     }
 
     private var storyPanel: some View {

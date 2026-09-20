@@ -42,7 +42,7 @@ final class ParentSettings {
         didSet { persist(skippedRestAlertCount, Key.skippedRestAlertCount) }
     }
 
-    /// Extra rest of 5 minutes adds 2 minutes to the next use session.
+    /// Extra rest of 10 minutes or more adds up to 5 minutes to the next use session.
     var rewardExtraRest: Bool {
         didSet { UserDefaults.standard.set(rewardExtraRest, forKey: Key.rewardExtraRest) }
     }

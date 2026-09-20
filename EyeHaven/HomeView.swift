@@ -18,7 +18,7 @@ struct HomeView: View {
                 TimerRing(
                     progress: session.progress,
                     timeText: session.phase == .idle
-                        ? idleUseDuration.clockString
+                        ? session.nextUseDuration.clockString
                         : session.remaining(at: clock.now).clockString,
                     caption: session.phase == .idle ? "本次使用" : "剩余",
                     timeFontSize: HavenLayout.timerRingFont
@@ -177,13 +177,6 @@ struct HomeView: View {
     private var headerDetail: String {
         let distance = settings.requireDistanceCheck ? "开始前至少 \(settings.minimumDistanceCm) 厘米" : "未开启测距"
         return "用 \(settings.workMinutes) 分 · 休息 \(settings.restMinutes) 分 · \(distance)"
-    }
-
-    private var idleUseDuration: TimeInterval {
-        let bonus = settings.rewardExtraRest ? report.nextBonusMinutes : 0
-        let minutes = settings.workMinutes + bonus
-        let daily = report.remainingSeconds(dailyLimitMinutes: settings.dailyLimitMinutes)
-        return min(TimeInterval(minutes * 60), TimeInterval(max(0, daily)))
     }
 
     /// Background this app so the child can use other apps. The use timer keeps running.

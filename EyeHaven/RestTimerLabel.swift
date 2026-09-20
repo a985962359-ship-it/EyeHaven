@@ -5,16 +5,29 @@ struct RestTimerLabel: UIViewRepresentable {
     var restDuration: TimeInterval
     var sessionEndDate: Date?
     var countUp: Bool
+    var frozenRemaining: TimeInterval? = nil
     var fontSize: CGFloat = 56
 
     func makeUIView(context: Context) -> RestTimerUIView {
         let view = RestTimerUIView()
-        view.apply(restDuration: restDuration, sessionEndDate: sessionEndDate, countUp: countUp, fontSize: fontSize)
+        view.apply(
+            restDuration: restDuration,
+            sessionEndDate: sessionEndDate,
+            countUp: countUp,
+            frozenRemaining: frozenRemaining,
+            fontSize: fontSize
+        )
         return view
     }
 
     func updateUIView(_ uiView: RestTimerUIView, context: Context) {
-        uiView.apply(restDuration: restDuration, sessionEndDate: sessionEndDate, countUp: countUp, fontSize: fontSize)
+        uiView.apply(
+            restDuration: restDuration,
+            sessionEndDate: sessionEndDate,
+            countUp: countUp,
+            frozenRemaining: frozenRemaining,
+            fontSize: fontSize
+        )
     }
 
     static func dismantleUIView(_ uiView: RestTimerUIView, coordinator: ()) {
@@ -37,6 +50,7 @@ final class RestTimerUIView: UIView {
     private var link: CADisplayLink?
     /// Frozen when first set so SwiftUI updates cannot restart the countdown.
     private var lockedEndDate: Date?
+    private var frozenRemaining: TimeInterval?
     private var countUp = false
     private var restDuration: TimeInterval = 0
 
@@ -62,12 +76,23 @@ final class RestTimerUIView: UIView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func apply(restDuration: TimeInterval, sessionEndDate: Date?, countUp: Bool, fontSize: CGFloat = 56) {
+    func apply(
+        restDuration: TimeInterval,
+        sessionEndDate: Date?,
+        countUp: Bool,
+        frozenRemaining: TimeInterval? = nil,
+        fontSize: CGFloat = 56
+    ) {
         self.countUp = countUp
         self.restDuration = restDuration
         label.font = .monospacedDigitSystemFont(ofSize: fontSize, weight: .light)
-        if let sessionEndDate {
-            lockedEndDate = sessionEndDate
+        if let frozenRemaining {
+            self.frozenRemaining = frozenRemaining
+        } else {
+            self.frozenRemaining = nil
+            if let sessionEndDate {
+                lockedEndDate = sessionEndDate
+            }
         }
         tick()
         if window != nil {
@@ -97,6 +122,11 @@ final class RestTimerUIView: UIView {
     }
 
     fileprivate func tick() {
+        if let frozen = frozenRemaining {
+            let total = max(0, Int(frozen.rounded()))
+            label.text = String(format: "%d:%02d", total / 60, total % 60)
+            return
+        }
         guard let end = lockedEndDate else {
             let total = max(0, Int(restDuration.rounded()))
             label.text = String(format: "%d:%02d", total / 60, total % 60)
