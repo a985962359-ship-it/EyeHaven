@@ -2,20 +2,39 @@ import SwiftUI
 
 struct RootView: View {
     @Environment(RestSession.self) private var session
+    @Environment(ParentSettings.self) private var settings
+    @Environment(CheckInFeedback.self) private var feedback
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
-        Group {
-            if session.showsRestPage {
-            RestCheckInView()
-                .id("rest-screen")
-            } else {
-                mainTabs
+        ZStack {
+            Group {
+                if session.showsRestPage {
+                RestCheckInView()
+                    .id("rest-screen")
+                } else {
+                    mainTabs
+                }
             }
+            if let moment = feedback.moment {
+                CheckInMomentView(moment: moment) {
+                    feedback.dismiss()
+                }
+                .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: feedback.moment)
+        .onAppear {
+            session.apply(settings)
         }
         .onChange(of: scenePhase) { _, newPhase in
             session.handleScenePhase(newPhase)
         }
+        .onChange(of: settings.workMinutes) { _, _ in session.apply(settings) }
+        .onChange(of: settings.restMinutes) { _, _ in session.apply(settings) }
+        .onChange(of: settings.dailyLimitMinutes) { _, _ in session.apply(settings) }
+        .onChange(of: settings.skippedRestAlertCount) { _, _ in session.apply(settings) }
+        .onChange(of: settings.rewardExtraRest) { _, _ in session.apply(settings) }
     }
 
     private var mainTabs: some View {
@@ -38,4 +57,6 @@ struct RootView: View {
         .environment(ParentSettings())
         .environment(DailyReport())
         .environment(AppClock.shared)
+        .environment(RestStoryPlayer.shared)
+        .environment(CheckInFeedback.shared)
 }

@@ -36,6 +36,7 @@ final class DistanceChecker: NSObject {
         requestCamera { [weak self] granted in
             guard let self else { return }
             guard granted else {
+                self.isRunning = false
                 self.status = .unavailable("请在系统设置里允许 EyeHaven 使用摄像头。")
                 return
             }

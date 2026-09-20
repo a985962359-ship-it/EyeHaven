@@ -19,7 +19,7 @@ struct ParentReportView: View {
 
                 HStack(spacing: 12) {
                     statCard(title: "今日使用", value: "\(today.usedMinutes) 分钟", detail: "上限 \(settings.dailyLimitMinutes) 分钟")
-                    statCard(title: "还剩", value: "\(max(0, report.remainingSeconds(dailyLimitMinutes: settings.dailyLimitMinutes) / 60)) 分钟", detail: "到点后不能再开始")
+                    statCard(title: "还剩", value: leftoverText, detail: "到点后不能再开始")
                 }
 
                 HStack(spacing: 12) {
@@ -76,12 +76,21 @@ struct ParentReportView: View {
                     .background(RoundedRectangle(cornerRadius: 12).fill(Palette.foam))
                 }
             }
-            .padding()
+            .padding(HavenLayout.isPad ? 28 : 16)
+            .frame(maxWidth: HavenLayout.pageMaxWidth)
+            .frame(maxWidth: .infinity)
         }
     }
 
+    private var leftoverText: String {
+        let left = report.remainingSeconds(dailyLimitMinutes: settings.dailyLimitMinutes)
+        if left <= 0 { return "0 分钟" }
+        if left < 60 { return "不到 1 分钟" }
+        return "\(left / 60) 分钟"
+    }
+
     private var failedCheckIns: [CheckInEvent] {
-        report.checkIns.filter { !$0.succeeded }
+        report.todaysCheckIns.filter { !$0.succeeded }
     }
 
     private var quotaBanner: some View {

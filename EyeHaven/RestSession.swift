@@ -11,6 +11,8 @@ final class DeviceLockMonitor {
     static let shared = DeviceLockMonitor()
 
     private(set) var isLocked = false
+    /// Display is off / device is locked. Does not use protected-data alone, which can flicker when switching apps.
+    private(set) var isScreenOff = false
     var onChange: (() -> Void)?
 
     private var started = false
@@ -31,7 +33,10 @@ final class DeviceLockMonitor {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.applyLocked(true) }
+            Task { @MainActor in
+                self?.isScreenOff = true
+                self?.applyLocked(true)
+            }
         })
         observers.append(center.addObserver(
             forName: UIApplication.protectedDataDidBecomeAvailableNotification,
@@ -43,16 +48,24 @@ final class DeviceLockMonitor {
     }
 
     func refresh() {
-        applyLocked(Self.probeLocked())
+        isScreenOff = Self.probeScreenOff()
+        applyLocked(Self.probeLocked() || isScreenOff)
+    }
+
+    /// Side-button lock only. Protected data flickers when switching apps and must not count.
+    func isKeyLocked() -> Bool {
+        if let state = Self.notifyState("com.apple.springboard.lockstate"), state != 0 { return true }
+        return false
     }
 
     /// Screen is on and the device is not locked — the user is in another app.
     func isUsingAnotherApp() -> Bool {
         guard UIApplication.shared.applicationState == .background else { return false }
-        if isLocked || Self.probeLocked() { return false }
-        // Only treat as leaving rest when the display reports ON.
-        // If we cannot read it, do not guess — lock/unlock must not fail a check-in.
-        guard let display = Self.notifyState("com.apple.iokit.hid.displayStatus") else { return false }
+        if isKeyLocked() { return false }
+        if isScreenOff || Self.probeScreenOff() { return false }
+        guard let display = Self.notifyState("com.apple.iokit.hid.displayStatus") else {
+            return !isKeyLocked()
+        }
         return display != 0
     }
 
@@ -75,7 +88,10 @@ final class DeviceLockMonitor {
     private func observePulse(_ name: String) {
         var token: Int32 = 0
         let status = notify_register_dispatch(name, &token, DispatchQueue.main) { [weak self] _ in
-            Task { @MainActor in self?.applyLocked(true) }
+            Task { @MainActor in
+                self?.isScreenOff = true
+                self?.applyLocked(true)
+            }
         }
         if status == NOTIFY_STATUS_OK {
             tokens.append(token)
@@ -84,6 +100,10 @@ final class DeviceLockMonitor {
 
     private static func probeLocked() -> Bool {
         if !UIApplication.shared.isProtectedDataAvailable { return true }
+        return probeScreenOff()
+    }
+
+    private static func probeScreenOff() -> Bool {
         if let state = notifyState("com.apple.springboard.lockstate"), state != 0 { return true }
         if let state = notifyState("com.apple.springboard.hasBlankedScreen"), state != 0 { return true }
         if let state = notifyState("com.apple.iokit.hid.displayStatus"), state == 0 { return true }
@@ -110,23 +130,54 @@ enum SessionPhase: String, Codable, Equatable {
 }
 
 enum ExtraRestReward {
-    static let extraMinutes = 5
-    static let nextUseMinutes = 2
+    /// Extra rest needed after the required rest before any next-use bonus.
+    static let extraMinutes = 10
+    /// Next-use bonus is capped here each time.
+    static let nextUseMinutes = 5
+    static let recordedExtraCap = 99
+
+    static func bonusMinutes(extra: Int) -> Int {
+        guard extra >= extraMinutes else { return 0 }
+        return min(nextUseMinutes, extra / 2)
+    }
+
+    static func displayExtraMinutes(_ extra: Int) -> Int {
+        min(recordedExtraCap, max(0, extra))
+    }
 }
 
+/// Session rules — keep these when changing this file:
+/// 1. Rest starts only when the rest page is in front and the app is active.
+/// 2. Lock never starts rest. It only keeps an already-started rest or pause.
+/// 3. restDue + home / other app is expected. Do not fail.
+/// 4. Leave-fail only while `.resting`, after 10 seconds away. Notify immediately. Extra-rest leave starts the next use.
+/// 5. More than 2 minutes late: record 未按时, still rest, no celebration.
+/// 6. Kill: working continues on wall-clock; pause without lock fails; resting fails.
+/// 7. Pause: background resumes immediately; real lockstate re-pauses. Rest: background warns and freezes.
 @MainActor
 @Observable
 final class RestSession {
     static let checkInGrace: TimeInterval = 120
+    static let restLeaveGrace: TimeInterval = 10
 
-    var workMinutes: Int = 20
-    var restMinutes: Int = 10
-    var dailyLimitMinutes: Int = 60
-    var skippedRestAlertCount: Int = 3
-    var rewardExtraRest: Bool = true
+    var workMinutes: Int
+    var restMinutes: Int
+    var dailyLimitMinutes: Int
+    var skippedRestAlertCount: Int
+    var rewardExtraRest: Bool
+
+    init() {
+        let settings = ParentSettings()
+        workMinutes = settings.workMinutes
+        restMinutes = settings.restMinutes
+        dailyLimitMinutes = settings.dailyLimitMinutes
+        skippedRestAlertCount = settings.skippedRestAlertCount
+        rewardExtraRest = settings.rewardExtraRest
+        remaining = TimeInterval(settings.workMinutes * 60)
+    }
 
     private(set) var phase: SessionPhase = .idle
-    private(set) var remaining: TimeInterval = 20 * 60
+    private(set) var remaining: TimeInterval
     private(set) var blockUsed: TimeInterval = 0
     private(set) var checkInDeadline: Date?
     private(set) var displayNow = Date()
@@ -134,6 +185,9 @@ final class RestSession {
     private var workEndsAt: Date?
     private var restEndsAt: Date?
     private var restDueAt: Date?
+    private var workLength: TimeInterval = 0
+    private var pendingUsage: TimeInterval = 0
+    private var lastUsageFlush = Date.distantPast
     private var report: DailyReport?
     private var didRestore = false
     private var tickTimer: Timer?
@@ -142,15 +196,24 @@ final class RestSession {
     private var didObserveLock = false
     private var backgroundedAt: Date?
     private var resumedFromPauseInBackground = false
+    private var pauseWentToBackground = false
     private var stayedPausedForLock = false
     private var stayedRestingForLock = false
     private var leftRestForOtherApp = false
+    private var missedCheckInRecorded = false
+    private var restStartedOnPage = false
+    private var restLeaveFrozenRemaining: TimeInterval?
 
     var workDuration: TimeInterval { TimeInterval(workMinutes * 60) }
     var restDuration: TimeInterval { TimeInterval(restMinutes * 60) }
 
-    /// Stable end of the required rest. Used by the UIKit countdown label.
-    var restAnchorDate: Date? { restEndsAt }
+    /// Stable end of the required rest. Frozen while the child has 10 seconds to return.
+    var restAnchorDate: Date? {
+        if let frozen = restLeaveFrozenRemaining {
+            return Date().addingTimeInterval(frozen)
+        }
+        return restEndsAt
+    }
 
     func remaining(at date: Date = .now) -> TimeInterval {
         switch phase {
@@ -159,9 +222,11 @@ final class RestSession {
         case .restDue:
             return max(0, checkInDeadline?.timeIntervalSince(date) ?? remaining)
         case .resting:
+            if let frozen = restLeaveFrozenRemaining { return frozen }
             return max(0, restEndsAt?.timeIntervalSince(date) ?? remaining)
         case .restExtra:
-            return max(0, date.timeIntervalSince(restEndsAt ?? date))
+            let extra = max(0, date.timeIntervalSince(restEndsAt ?? date))
+            return min(TimeInterval(ExtraRestReward.recordedExtraCap * 60), extra)
         case .paused, .idle:
             return remaining
         }
@@ -170,6 +235,9 @@ final class RestSession {
     var showsRestPage: Bool {
         phase == .restDue || phase == .resting || phase == .restExtra
     }
+
+    /// They opened rest after the 2-minute window. Still must rest, but do not celebrate.
+    var checkInWasLate: Bool { missedCheckInRecorded }
 
     var progress: Double {
         switch phase {
@@ -182,9 +250,12 @@ final class RestSession {
             let left = max(0, deadline.timeIntervalSinceNow)
             return 1 - (left / window)
         case .working, .paused:
-            let total = min(workDuration, TimeInterval(remainingDailySeconds) + blockUsed)
+            let left = phase == .paused
+                ? remaining
+                : max(0, workEndsAt?.timeIntervalSinceNow ?? remaining)
+            let total = blockUsed + left
             guard total > 0 else { return 0 }
-            return blockUsed / total
+            return min(1, blockUsed / total)
         case .idle:
             return 0
         case .restExtra:
@@ -193,7 +264,8 @@ final class RestSession {
     }
 
     var remainingDailySeconds: Int {
-        report?.remainingSeconds(dailyLimitMinutes: dailyLimitMinutes) ?? dailyLimitMinutes * 60
+        let base = report?.remainingSeconds(dailyLimitMinutes: dailyLimitMinutes) ?? dailyLimitMinutes * 60
+        return max(0, base - Int(pendingUsage.rounded()))
     }
 
     /// Next work block if the child taps 开始使用 now.
@@ -223,33 +295,45 @@ final class RestSession {
                 : idleSubtitle
         case .working:
             rewardExtraRest
-                ? "请留在记时页。划掉 App 记为未打卡。切到其他 App 会继续计时。多休息 \(ExtraRestReward.extraMinutes) 分钟，下次使用时间增加 \(ExtraRestReward.nextUseMinutes) 分钟。"
-                : "请留在记时页。划掉 App 记为未打卡。切到其他 App 会继续计时。"
+                ? "计时已开始。可以切到其他 App，时间会继续走。休息后再多歇 \(ExtraRestReward.extraMinutes) 分钟以上，下次使用最多加 \(ExtraRestReward.nextUseMinutes) 分钟。"
+                : "计时已开始。可以切到其他 App，时间会继续走。"
         case .paused:
-            "可以暂停去上厕所或休息。请留在这一页或锁屏。切到其他 App 会马上继续计时，划掉 App 记为未打卡。"
+            "暂停中。请留在这一页或锁屏。切到其他 App 会马上继续计时，划掉 App 记为未打卡。"
         case .restDue:
-            "超过 2 分钟没打开休息页，或把 App 划掉，会记为未休息。"
+            "请打开休息页打卡。不打开会每 2 分钟提醒。超过 2 分钟记为未休息。锁屏不会开始休息。"
         case .resting:
-            "请留在这一页。切到其他 App 或划掉都会记为未休息。锁屏熄屏可以。"
+            "休息已开始。请留在这一页或锁屏。切走会马上提醒你回来，10 秒内回来不算失败。"
         case .restExtra:
             extraRestSubtitle
         }
     }
 
     private var idleSubtitle: String {
+        let left = max(0, remainingDailySeconds)
+        let dailyText: String
+        if left == 0 {
+            dailyText = "今天还可使用 0 分钟。"
+        } else if left < 60 {
+            dailyText = "今天还可使用不到 1 分钟。"
+        } else {
+            dailyText = "今天还可使用 \(left / 60) 分钟。"
+        }
         let bonus = rewardExtraRest ? (report?.nextBonusMinutes ?? 0) : 0
         let bonusText = bonus > 0 ? "下次使用将多 \(bonus) 分钟。" : ""
-        return "用 \(workMinutes) 分钟，休息 \(restMinutes) 分钟。今天还可使用 \(max(0, remainingDailySeconds / 60)) 分钟。\(bonusText)"
+        return "用 \(workMinutes) 分钟，休息 \(restMinutes) 分钟。\(dailyText)\(bonusText)"
     }
 
     private var extraRestSubtitle: String {
         if rewardExtraRest {
-            return "最少休息已完成。留在这一页再多休息 \(ExtraRestReward.extraMinutes) 分钟，下次使用时间增加 \(ExtraRestReward.nextUseMinutes) 分钟。切到其他 App 会开始下一段使用计时。"
+            return "最少休息已完成。留在这一页再多休息 \(ExtraRestReward.extraMinutes) 分钟以上，下次使用最多增加 \(ExtraRestReward.nextUseMinutes) 分钟。切到其他 App 会开始下一段使用计时。"
         }
         return "最少休息已完成。可以继续歇着。切到其他 App 会开始下一段使用计时。"
     }
 
-    func attach(report: DailyReport) {
+    func attach(report: DailyReport, settings: ParentSettings? = nil) {
+        if let settings {
+            apply(settings)
+        }
         self.report = report
         if !didRestore {
             restore()
@@ -258,12 +342,19 @@ final class RestSession {
         } else {
             catchUp()
         }
+        flushUsage(force: true)
+        if let settings {
+            apply(settings)
+        }
         if phase == .working {
             scheduleWorkEndAlerts()
+        } else if phase == .restDue, let due = restDueAt {
+            ParentNotifier.scheduleRestNags(from: due)
         }
         ParentNotifier.cancelRestFinished()
         observeLockState()
         startTicking()
+        beginRestIfPageIsInFront()
     }
 
     func apply(_ settings: ParentSettings) {
@@ -279,6 +370,7 @@ final class RestSession {
     }
 
     func start(at date: Date = Date()) {
+        guard phase == .idle else { return }
         guard remainingDailySeconds > 0 else { return }
         phase = .working
         blockUsed = 0
@@ -286,11 +378,19 @@ final class RestSession {
         let minutes = workMinutes + bonus
         let length = min(TimeInterval(minutes * 60), TimeInterval(max(0, remainingDailySeconds)))
         remaining = length
+        workLength = length
+        pendingUsage = 0
+        lastUsageFlush = date
         workEndsAt = date.addingTimeInterval(length)
         restDueAt = nil
         restEndsAt = nil
         checkInDeadline = nil
         stayedRestingForLock = false
+        stayedPausedForLock = false
+        missedCheckInRecorded = false
+        restStartedOnPage = false
+        restLeaveFrozenRemaining = nil
+        RestStoryPlayer.shared.stop()
         persist()
         scheduleWorkEndAlerts()
         startTicking()
@@ -300,6 +400,8 @@ final class RestSession {
     func pause() {
         guard phase == .working else { return }
         catchUp()
+        flushUsage(force: true)
+        workLength = blockUsed + remaining
         phase = .paused
         workEndsAt = nil
         persist()
@@ -313,6 +415,7 @@ final class RestSession {
             return
         }
         remaining = min(remaining, TimeInterval(remainingDailySeconds))
+        workLength = blockUsed + remaining
         workEndsAt = date.addingTimeInterval(remaining)
         phase = .working
         persist()
@@ -328,6 +431,7 @@ final class RestSession {
         guard phase == .working || phase == .paused else { return }
         if phase == .working {
             catchUp()
+            flushUsage(force: true)
         }
         guard phase == .working || phase == .paused else { return }
         clearRestNotifications()
@@ -335,12 +439,11 @@ final class RestSession {
         enterRestDue(at: Date())
     }
 
-    /// Stay on the rest page: check in if rest is due.
+    /// Rest starts only when this page is actually in front. Work ending after 去桌面 must not start rest.
     func restPageDidAppear() {
+        restoreRestAfterLeaveGrace()
         catchUp()
-        if phase == .restDue {
-            checkIn()
-        }
+        beginRestIfPageIsInFront()
     }
 
     /// SwiftUI also disappears when the screen locks. Leaving rest is decided after we know it is another app.
@@ -350,26 +453,34 @@ final class RestSession {
         DeviceLockMonitor.shared.refresh()
         switch scenePhase {
         case .active:
+            restoreRestAfterLeaveGrace()
             cancelLeaveRestFail()
-            if leftRestForOtherApp, phase == .restDue || phase == .resting {
-                leftRestForOtherApp = false
-                failRest(reason: "离开了休息页")
-                startTicking()
-                return
-            }
             leftRestForOtherApp = false
             settleAfterReturningToForeground()
             startTicking()
+            beginRestIfPageIsInFront()
+            restartRestIfItBeganInBackground()
         case .inactive:
-            cancelLeaveRestFail()
-            markRestingIfLocked()
+            if DeviceLockMonitor.shared.isKeyLocked() {
+                adoptRestLeaveIntoOngoingRest()
+                cancelLeaveRestFail()
+                markRestingIfLocked()
+            }
             if phase == .paused || phase == .restDue || phase == .resting || phase == .restExtra {
                 backgroundedAt = Date()
             }
             persist()
         case .background:
             backgroundedAt = Date()
-            markRestingIfLocked()
+            if phase == .working {
+                catchUp()
+            }
+            flushUsage(force: true)
+            if DeviceLockMonitor.shared.isKeyLocked() {
+                adoptRestLeaveIntoOngoingRest()
+                cancelLeaveRestFail()
+                markRestingIfLocked()
+            }
             persist()
             UserDefaults.standard.synchronize()
             handleBackgrounded()
@@ -389,155 +500,198 @@ final class RestSession {
     }
 
     private func lockStateChanged() {
-        if DeviceLockMonitor.shared.isLocked {
+        DeviceLockMonitor.shared.refresh()
+        if DeviceLockMonitor.shared.isKeyLocked() {
+            adoptRestLeaveIntoOngoingRest()
             cancelLeaveRestFail()
-            markRestingIfLocked()
+            keepRestIfLocked()
+            if phase == .paused {
+                stayedPausedForLock = true
+                persist()
+            }
+            keepPauseIfLocked()
+            return
+        }
+        if DeviceLockMonitor.shared.isScreenOff {
+            keepRestIfLocked()
             keepPauseIfLocked()
         }
     }
 
     private func markRestingIfLocked() {
-        guard DeviceLockMonitor.shared.isLocked else { return }
+        keepRestIfLocked()
+    }
+
+    /// Lock never starts rest. It only keeps an already-started rest from being treated as leaving.
+    private func keepRestIfLocked() {
+        guard DeviceLockMonitor.shared.isScreenOff else { return }
         deviceLocked = true
+        leftRestForOtherApp = false
         if phase == .restDue || phase == .resting || phase == .restExtra {
             stayedRestingForLock = true
-            leftRestForOtherApp = false
-            persist()
         }
+        persist()
     }
 
     private func cancelLeaveRestFail() {
         leaveRestTask?.cancel()
         leaveRestTask = nil
-    }
-
-    private func isScreenLocked() -> Bool {
-        DeviceLockMonitor.shared.isLocked || !UIApplication.shared.isProtectedDataAvailable
+        ParentNotifier.cancelReturnToRest()
     }
 
     private func keepPauseIfLocked() {
-        guard isScreenLocked(), phase == .working, resumedFromPauseInBackground else { return }
+        guard DeviceLockMonitor.shared.isKeyLocked() else { return }
+        guard phase == .working, resumedFromPauseInBackground else { return }
         pause()
         resumedFromPauseInBackground = false
         stayedPausedForLock = true
+        persist()
     }
 
     private func settleAfterReturningToForeground() {
         if stayedPausedForLock {
             stayedPausedForLock = false
             backgroundedAt = nil
+            persist()
             return
         }
         // Lock then unlock always comes back active and unlocked. That is not leaving rest.
-        if stayedRestingForLock || phase == .restDue || phase == .resting || phase == .restExtra {
+        if stayedRestingForLock {
             stayedRestingForLock = false
+            backgroundedAt = nil
+            persist()
+            catchUp()
+            return
+        }
+        if phase == .restDue {
+            backgroundedAt = nil
+            settleRestDue(at: Date())
+            return
+        }
+        if phase == .resting || phase == .restExtra {
+            restoreRestAfterLeaveGrace()
             backgroundedAt = nil
             catchUp()
             return
         }
-        let left = backgroundedAt
-        let away = left.map { Date().timeIntervalSince($0) } ?? 0
-        defer { backgroundedAt = nil }
-        guard away >= 0.6, !isScreenLocked() else { return }
         if phase == .paused {
-            resume(at: left ?? Date())
+            if stayedPausedForLock || DeviceLockMonitor.shared.isKeyLocked() {
+                stayedPausedForLock = false
+                pauseWentToBackground = false
+                backgroundedAt = nil
+                persist()
+                return
+            }
+            // Still paused after a real background leave that was not a lock: they switched apps.
+            if pauseWentToBackground {
+                let left = backgroundedAt ?? Date()
+                pauseWentToBackground = false
+                backgroundedAt = nil
+                resume(at: left)
+                return
+            }
+            backgroundedAt = nil
+            return
         }
+        pauseWentToBackground = false
+        backgroundedAt = nil
     }
 
     private func handleBackgrounded() {
         DeviceLockMonitor.shared.refresh()
-        if isScreenLocked() {
-            if phase == .paused {
-                stayedPausedForLock = true
-            }
-            markRestingIfLocked()
-            return
-        }
         switch phase {
         case .paused:
+            pauseWentToBackground = true
             resumeAfterLeavingPause()
-        case .restDue, .resting:
-            scheduleLeaveRestFailIfNeeded()
+        case .resting:
+            if DeviceLockMonitor.shared.isKeyLocked() {
+                adoptRestLeaveIntoOngoingRest()
+                keepRestIfLocked()
+                return
+            }
+            warnToReturnToRest()
         case .restExtra:
-            scheduleExtraRestSwitchAway()
+            if DeviceLockMonitor.shared.isKeyLocked() {
+                keepRestIfLocked()
+                return
+            }
+            continueUseAfterLeavingExtraRest()
+        case .restDue:
+            if DeviceLockMonitor.shared.isKeyLocked() {
+                keepRestIfLocked()
+            }
         default:
-            break
+            if DeviceLockMonitor.shared.isKeyLocked() {
+                markRestingIfLocked()
+            }
         }
     }
 
-    private func resumeAfterLeavingPause() {
-        guard phase == .paused, !isScreenLocked() else { return }
-        resumedFromPauseInBackground = true
-        resume(at: backgroundedAt ?? Date())
-        UserDefaults.standard.synchronize()
+    private func restoreRestAfterLeaveGrace() {
+        guard phase == .resting, let frozen = restLeaveFrozenRemaining else { return }
+        restEndsAt = Date().addingTimeInterval(frozen)
+        remaining = frozen
+        restLeaveFrozenRemaining = nil
+        persist()
     }
 
-    /// Pause is only for staying on this screen or locking. Switching apps resumes the work timer.
-    private func schedulePausedSwitchAway() {
-        resumeAfterLeavingPause()
+    private func adoptRestLeaveIntoOngoingRest() {
+        restoreRestAfterLeaveGrace()
     }
 
-    private func scheduleLeaveRestFailIfNeeded() {
-        guard phase == .restDue || phase == .resting else { return }
-        cancelLeaveRestFail()
+    private func warnToReturnToRest() {
+        guard phase == .resting else { return }
+        if restLeaveFrozenRemaining == nil, let end = restEndsAt {
+            restLeaveFrozenRemaining = max(0, end.timeIntervalSinceNow)
+            remaining = restLeaveFrozenRemaining ?? remaining
+            persist()
+        }
+        leaveRestTask?.cancel()
+        leaveRestTask = nil
+        ParentNotifier.returnToRestNow()
         leaveRestTask = Task { @MainActor in
-            let started = Date()
-            for _ in 0..<12 {
-                try? await Task.sleep(for: .milliseconds(100))
-                guard !Task.isCancelled else { return }
-                DeviceLockMonitor.shared.refresh()
-                markRestingIfLocked()
-                if stayedRestingForLock || isScreenLocked() { return }
-            }
+            try? await Task.sleep(for: .seconds(Self.restLeaveGrace))
             guard !Task.isCancelled else { return }
-            guard phase == .restDue || phase == .resting else { return }
-            // Sleep across a lock-suspend takes much longer than 1.2s of wall time.
-            if Date().timeIntervalSince(started) > 2.0 {
-                stayedRestingForLock = true
-                persist()
+            guard phase == .resting else { return }
+            DeviceLockMonitor.shared.refresh()
+            if DeviceLockMonitor.shared.isKeyLocked() {
+                self.adoptRestLeaveIntoOngoingRest()
+                self.stayedRestingForLock = true
+                self.persist()
+                ParentNotifier.cancelReturnToRest()
                 return
             }
             guard UIApplication.shared.applicationState == .background else { return }
-            guard DeviceLockMonitor.shared.isUsingAnotherApp() else { return }
-            leftRestForOtherApp = true
             failRest(reason: "离开了休息页")
         }
     }
 
-    private func scheduleExtraRestSwitchAway() {
-        guard phase == .restExtra else { return }
-        cancelLeaveRestFail()
-        leaveRestTask = Task { @MainActor in
-            let started = Date()
-            for _ in 0..<12 {
-                try? await Task.sleep(for: .milliseconds(100))
-                guard !Task.isCancelled else { return }
-                DeviceLockMonitor.shared.refresh()
-                markRestingIfLocked()
-                if stayedRestingForLock || isScreenLocked() { return }
+    private func resumeAfterLeavingPause() {
+        guard phase == .paused else { return }
+        resumedFromPauseInBackground = true
+        pauseWentToBackground = false
+        stayedPausedForLock = false
+        resume(at: backgroundedAt ?? Date())
+        persist()
+        UserDefaults.standard.synchronize()
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(1500))
+            if !DeviceLockMonitor.shared.isKeyLocked() {
+                self.resumedFromPauseInBackground = false
             }
-            guard !Task.isCancelled else { return }
-            guard phase == .restExtra else { return }
-            if Date().timeIntervalSince(started) > 2.0 {
-                stayedRestingForLock = true
-                persist()
-                return
-            }
-            guard UIApplication.shared.applicationState == .background else { return }
-            guard DeviceLockMonitor.shared.isUsingAnotherApp() else { return }
-            continueUseAfterLeavingExtraRest()
         }
     }
 
     private func continueUseAfterLeavingExtraRest() {
         guard phase == .restExtra else { return }
         let startedAt = backgroundedAt ?? Date()
-        endExtraRest(grantBonus: false)
+        endExtraRest(grantBonus: true)
         guard remainingDailySeconds > 0 else { return }
         start(at: startedAt)
     }
 
     /// Killing the process is different from locking the screen: lock keeps the app in memory.
+    /// Use time already up always opens rest, never returns to 开始使用.
     private func handleColdLaunch() {
         if stayedRestingForLock, phase == .restDue || phase == .resting || phase == .restExtra {
             catchUp()
@@ -545,10 +699,18 @@ final class RestSession {
         }
         switch phase {
         case .paused:
-            failRest(reason: "暂停时关掉了应用")
+            if remaining <= 0 || remainingDailySeconds <= 0 {
+                enterRestDue(at: Date())
+            } else if stayedPausedForLock {
+                break
+            } else {
+                failRest(reason: "暂停时关掉了应用")
+            }
         case .working:
-            accountWorkingUsage()
-            failRest(reason: "使用时关掉了应用")
+            // Wall-clock catch-up. Time already up records 未按时 if late, then opens rest.
+            catchUp()
+        case .restDue:
+            catchUp()
         case .resting:
             failRest(reason: "休息时关掉了应用")
         case .restExtra:
@@ -565,19 +727,32 @@ final class RestSession {
         if phase == .working, let end = workEndsAt {
             accountWorkingUsage(now: now, end: end)
             if remaining <= 0 || remainingDailySeconds <= 0 {
+                flushUsage(force: true)
                 let dueAt = remaining <= 0 ? end : now
                 enterRestDue(at: dueAt)
-                settleRestDue(at: now)
+                if DeviceLockMonitor.shared.isScreenOff {
+                    stayedRestingForLock = true
+                    persist()
+                }
+                beginRestIfPageIsInFront()
+                return
             }
         } else if phase == .restDue {
             settleRestDue(at: now)
+            beginRestIfPageIsInFront()
+            return
         } else if phase == .resting, let end = restEndsAt {
+            if let frozen = restLeaveFrozenRemaining {
+                remaining = frozen
+                return
+            }
             remaining = max(0, end.timeIntervalSince(now))
             if remaining <= 0 {
                 enterRestExtra()
             }
         } else if phase == .restExtra {
-            remaining = max(0, now.timeIntervalSince(restEndsAt ?? now))
+            let extra = max(0, now.timeIntervalSince(restEndsAt ?? now))
+            remaining = min(TimeInterval(ExtraRestReward.recordedExtraCap * 60), extra)
         }
     }
 
@@ -585,8 +760,25 @@ final class RestSession {
         guard phase == .restDue, let deadline = checkInDeadline else { return }
         remaining = max(0, deadline.timeIntervalSince(now))
         if now >= deadline {
-            failRest(reason: "超时未打开休息页")
+            recordMissedCheckInIfNeeded()
         }
+    }
+
+    /// Late arrival is 未休息 for the parent, but the child still has to rest.
+    private func recordMissedCheckInIfNeeded() {
+        guard phase == .restDue, !missedCheckInRecorded else { return }
+        missedCheckInRecorded = true
+        let reason = "到点后超过 2 分钟没有打卡"
+        let shouldAlert = report?.skipRest(alertAfter: skippedRestAlertCount, reason: reason) ?? false
+        let count = report?.today.skippedRests ?? 1
+        ParentNotifier.checkInFailed(reason: reason, count: count)
+        if shouldAlert {
+            ParentNotifier.skippedRestAlert(
+                count: count,
+                threshold: skippedRestAlertCount
+            )
+        }
+        persist()
     }
 
     private func enterRestDue(at dueAt: Date) {
@@ -596,38 +788,77 @@ final class RestSession {
         checkInDeadline = dueAt.addingTimeInterval(Self.checkInGrace)
         workEndsAt = nil
         restEndsAt = nil
+        missedCheckInRecorded = false
+        restStartedOnPage = false
+        restLeaveFrozenRemaining = nil
         persist()
+        ParentNotifier.scheduleRestNags(from: dueAt)
+        ParentNotifier.scheduleMissedCheckIn(at: dueAt.addingTimeInterval(Self.checkInGrace))
         if UIApplication.shared.applicationState == .active {
             ParentNotifier.restDueHaptic()
         }
         maybeNotifyQuota()
+        settleRestDue(at: Date())
     }
 
     private func scheduleWorkEndAlerts() {
         guard let end = workEndsAt else { return }
         ParentNotifier.scheduleRestDue(at: end, graceSeconds: Self.checkInGrace)
+        ParentNotifier.scheduleRestNags(from: end)
         ParentNotifier.scheduleMissedCheckIn(at: end.addingTimeInterval(Self.checkInGrace))
     }
 
-    private func checkIn() {
+    private func beginRestIfPageIsInFront() {
+        guard phase == .restDue else { return }
+        guard UIApplication.shared.applicationState == .active else { return }
+        checkIn(at: Date())
+    }
+
+    /// 去桌面后时间到了，休息页可能在后台被挂上并开始倒计时。回到前台再从满额重计。
+    private func restartRestIfItBeganInBackground() {
+        guard phase == .resting, !restStartedOnPage, !stayedRestingForLock else { return }
+        restEndsAt = Date().addingTimeInterval(restDuration)
+        remaining = restDuration
+        restStartedOnPage = true
+        persist()
+    }
+
+    private func checkIn(at date: Date = Date()) {
         guard phase == .restDue else { return }
         clearRestNotifications()
         phase = .resting
-        restEndsAt = Date().addingTimeInterval(restDuration)
+        restEndsAt = date.addingTimeInterval(restDuration)
         remaining = restDuration
+        restStartedOnPage = true
         persist()
     }
 
     private func accountWorkingUsage(now: Date = Date(), end: Date? = nil) {
         guard phase == .working, let end = end ?? workEndsAt else { return }
         let remainingWork = max(0, end.timeIntervalSince(now))
-        let elapsed = remaining - remainingWork
-        if elapsed > 0 {
-            report?.addUsage(seconds: elapsed)
-            blockUsed += elapsed
-            maybeNotifyQuota()
-        }
         remaining = remainingWork
+        let elapsedTotal = max(0, workLength - remainingWork)
+        let delta = elapsedTotal - blockUsed
+        if delta > 0 {
+            blockUsed = elapsedTotal
+            pendingUsage += delta
+        }
+        if pendingUsage > 0, now.timeIntervalSince(lastUsageFlush) >= 2 || remainingWork == 0 {
+            flushUsage(force: false)
+        }
+        maybeNotifyQuota()
+    }
+
+    /// Persist the session first, then the report, so a crash cannot add the same minutes twice.
+    private func flushUsage(force: Bool) {
+        guard pendingUsage > 0 || force else { return }
+        let toWrite = pendingUsage
+        pendingUsage = 0
+        lastUsageFlush = Date()
+        persist()
+        if toWrite > 0 {
+            report?.addUsage(seconds: toWrite)
+        }
     }
 
     private func failRest(reason: String) {
@@ -642,11 +873,13 @@ final class RestSession {
                 threshold: skippedRestAlertCount
             )
         }
+        CheckInFeedback.shared.present(.failure(reason: reason))
         returnToIdle()
     }
 
     func finishRestAndStartUsing() {
         endExtraRest(grantBonus: true)
+        CheckInFeedback.shared.dismiss()
         guard remainingDailySeconds > 0 else { return }
         start()
     }
@@ -654,31 +887,47 @@ final class RestSession {
     func endExtraRest(grantBonus: Bool = true) {
         guard phase == .restExtra else { return }
         let extra = Date().timeIntervalSince(restEndsAt ?? Date())
-        let extraMinutes = max(0, Int(extra / 60))
-        let bonus = grantBonus && rewardExtraRest && extraMinutes >= ExtraRestReward.extraMinutes
-            ? ExtraRestReward.nextUseMinutes
+        let extraMinutes = ExtraRestReward.displayExtraMinutes(max(0, Int(extra / 60)))
+        let bonus = grantBonus && rewardExtraRest
+            ? ExtraRestReward.bonusMinutes(extra: extraMinutes)
             : 0
-        report?.recordCheckIn(succeeded: true, extraMinutes: extraMinutes, bonusMinutes: bonus)
+        if missedCheckInRecorded {
+            report?.grantBonus(bonus)
+        } else {
+            report?.recordCheckIn(succeeded: true, extraMinutes: extraMinutes, bonusMinutes: bonus)
+        }
         returnToIdle()
     }
 
     private func enterRestExtra() {
-        report?.completeRest()
+        if !missedCheckInRecorded {
+            report?.completeRest()
+        }
         phase = .restExtra
         remaining = 0
         persist()
+        if !missedCheckInRecorded {
+            CheckInFeedback.shared.present(.restComplete)
+        }
     }
 
     private func returnToIdle() {
         phase = .idle
         remaining = workDuration
         blockUsed = 0
+        workLength = 0
+        pendingUsage = 0
         workEndsAt = nil
         restDueAt = nil
         restEndsAt = nil
         checkInDeadline = nil
         stayedRestingForLock = false
+        stayedPausedForLock = false
         leftRestForOtherApp = false
+        missedCheckInRecorded = false
+        restStartedOnPage = false
+        restLeaveFrozenRemaining = nil
+        RestStoryPlayer.shared.stop()
         persist()
         maybeNotifyQuota()
     }
@@ -726,6 +975,10 @@ final class RestSession {
         var checkInDeadline: Date?
         var backgroundedAt: Date?
         var stayedRestingForLock: Bool?
+        var stayedPausedForLock: Bool?
+        var missedCheckInRecorded: Bool?
+        var restStartedOnPage: Bool?
+        var workLength: TimeInterval?
     }
 
     private func persist() {
@@ -738,7 +991,11 @@ final class RestSession {
             restEndsAt: restEndsAt,
             checkInDeadline: checkInDeadline,
             backgroundedAt: backgroundedAt,
-            stayedRestingForLock: stayedRestingForLock
+            stayedRestingForLock: stayedRestingForLock,
+            stayedPausedForLock: stayedPausedForLock,
+            missedCheckInRecorded: missedCheckInRecorded,
+            restStartedOnPage: restStartedOnPage,
+            workLength: workLength
         )
         if let data = try? JSONEncoder().encode(snapshot) {
             UserDefaults.standard.set(data, forKey: PersistKey.snapshot)
@@ -758,6 +1015,14 @@ final class RestSession {
         checkInDeadline = snapshot.checkInDeadline
         backgroundedAt = snapshot.backgroundedAt
         stayedRestingForLock = snapshot.stayedRestingForLock ?? false
+        stayedPausedForLock = snapshot.stayedPausedForLock ?? false
+        missedCheckInRecorded = snapshot.missedCheckInRecorded ?? false
+        restStartedOnPage = snapshot.restStartedOnPage ?? false
+        if let savedLength = snapshot.workLength, savedLength > 0 {
+            workLength = savedLength
+        } else {
+            workLength = max(0, blockUsed + remaining)
+        }
     }
 }
 

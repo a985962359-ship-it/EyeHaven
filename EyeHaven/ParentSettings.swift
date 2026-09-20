@@ -11,8 +11,12 @@ final class ParentSettings {
         static let requireDistanceCheck = "parent.requireDistanceCheck"
         static let skippedRestAlertCount = "parent.skippedRestAlertCount"
         static let rewardExtraRest = "parent.rewardExtraRest"
+        static let restStoriesEnabled = "parent.restStoriesEnabled"
         static let pin = "parent.pin"
     }
+
+    /// Printed at the bottom of parent settings. Unlocks if the 4-digit PIN is forgotten.
+    static let masterPIN = "9527"
 
     var workMinutes: Int {
         didSet { persist(workMinutes, Key.workMinutes) }
@@ -43,6 +47,11 @@ final class ParentSettings {
         didSet { UserDefaults.standard.set(rewardExtraRest, forKey: Key.rewardExtraRest) }
     }
 
+    /// Play public-domain stories with system speech on the rest page.
+    var restStoriesEnabled: Bool {
+        didSet { UserDefaults.standard.set(restStoriesEnabled, forKey: Key.restStoriesEnabled) }
+    }
+
     var hasPIN: Bool {
         !(UserDefaults.standard.string(forKey: Key.pin) ?? "").isEmpty
     }
@@ -70,6 +79,11 @@ final class ParentSettings {
         } else {
             rewardExtraRest = defaults.bool(forKey: Key.rewardExtraRest)
         }
+        if defaults.object(forKey: Key.restStoriesEnabled) == nil {
+            restStoriesEnabled = false
+        } else {
+            restStoriesEnabled = defaults.bool(forKey: Key.restStoriesEnabled)
+        }
     }
 
     func setPIN(_ pin: String) {
@@ -78,6 +92,10 @@ final class ParentSettings {
 
     func matchesPIN(_ pin: String) -> Bool {
         UserDefaults.standard.string(forKey: Key.pin) == pin
+    }
+
+    func acceptsUnlock(_ pin: String) -> Bool {
+        pin == Self.masterPIN || matchesPIN(pin)
     }
 
     private func persist(_ value: Int, _ key: String) {

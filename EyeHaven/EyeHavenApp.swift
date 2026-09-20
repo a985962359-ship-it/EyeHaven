@@ -14,10 +14,12 @@ struct EyeHavenApp: App {
                 .environment(settings)
                 .environment(report)
                 .environment(AppClock.shared)
+                .environment(RestStoryPlayer.shared)
+                .environment(CheckInFeedback.shared)
                 .onAppear {
                     AppClock.shared.start()
-                    session.attach(report: report)
-                    session.apply(settings)
+                    RestStoryPlayer.shared.apply(enabled: settings.restStoriesEnabled)
+                    session.attach(report: report, settings: settings)
                 }
         }
     }

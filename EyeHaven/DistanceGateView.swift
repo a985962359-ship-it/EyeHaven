@@ -10,17 +10,18 @@ struct DistanceGateView: View {
 
     @State private var checker = DistanceChecker()
     @State private var didPass = false
+    @State private var abandoned = false
 
     var body: some View {
         ZStack {
             Palette.dusk.ignoresSafeArea()
             cameraLayer
-            VStack(spacing: 20) {
+            VStack(spacing: HavenLayout.isPad ? 24 : 20) {
                 Text("开始前测一次距离")
-                    .font(.title2.weight(.semibold))
+                    .font(HavenLayout.isPad ? .title.weight(.semibold) : .title2.weight(.semibold))
                     .foregroundStyle(Palette.foam)
                 Text("把脸放进圆圈，坐到大约 \(thresholdCm) 厘米再开始。测完会立刻关掉摄像头。")
-                    .font(.subheadline)
+                    .font(HavenLayout.isPad ? .body : .subheadline)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(Palette.foam.opacity(0.8))
                     .padding(.horizontal, 28)
@@ -28,7 +29,7 @@ struct DistanceGateView: View {
                 ZStack {
                     Circle()
                         .stroke(ringColor, lineWidth: 6)
-                        .frame(width: 240, height: 240)
+                        .frame(width: HavenLayout.distanceRingSize, height: HavenLayout.distanceRingSize)
                     statusText
                 }
                 .padding(.vertical, 12)
@@ -40,24 +41,30 @@ struct DistanceGateView: View {
                 }
 
                 HStack(spacing: 12) {
-                    Button("取消", action: onCancel)
-                        .buttonStyle(HavenButtonStyle(filled: false))
+                    Button("取消") {
+                        abandoned = true
+                        onCancel()
+                    }
+                    .buttonStyle(HavenButtonStyle(filled: false))
                     #if targetEnvironment(simulator)
                     Button("模拟器跳过") { pass() }
                         .buttonStyle(HavenButtonStyle(filled: true))
                     #endif
                 }
             }
-            .padding()
+            .padding(HavenLayout.isPad ? 36 : 16)
+            .frame(maxWidth: HavenLayout.pageMaxWidth)
+            .frame(maxWidth: .infinity)
         }
         .onAppear {
             checker.start(thresholdCm: thresholdCm)
         }
         .onDisappear {
+            abandoned = true
             checker.stop()
         }
         .onChange(of: checker.status) { _, newValue in
-            if case .ready = newValue, !didPass {
+            if case .ready = newValue, !didPass, !abandoned {
                 Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(450))
                     pass()
@@ -120,7 +127,7 @@ struct DistanceGateView: View {
     }
 
     private func pass() {
-        guard !didPass else { return }
+        guard !didPass, !abandoned else { return }
         didPass = true
         checker.stop()
         onPass()

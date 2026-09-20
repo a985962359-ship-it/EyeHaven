@@ -11,7 +11,7 @@ struct TipsView: View {
     private let tips: [EyeTip] = [
         .init(
             title: "用一会儿，歇一会儿",
-            detail: "使用时间到了，请在 2 分钟内打开休息页打卡，并一直留在该页。离开或超时都会记为未休息。",
+            detail: "使用时间到了，请打开休息页。打开这一页才开始休息。超过 2 分钟再打开会记为未按时打卡，但仍要歇完。休息开始后请留在该页或锁屏。切走会马上提醒你回来，10 秒内回来不算失败。",
             symbol: "clock"
         ),
         .init(
@@ -70,7 +70,9 @@ struct TipsView: View {
                         )
                     }
                 }
-                .padding()
+                .padding(HavenLayout.isPad ? 28 : 16)
+                .frame(maxWidth: HavenLayout.pageMaxWidth)
+                .frame(maxWidth: .infinity)
             }
             .background(Palette.mist.ignoresSafeArea())
             .navigationTitle("护眼提示")

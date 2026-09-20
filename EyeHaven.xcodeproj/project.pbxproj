@@ -26,6 +26,9 @@
 		A10000000000000000000031 /* AppClock.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000030 /* AppClock.swift */; };
 		A10000000000000000000033 /* ClockPulseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000032 /* ClockPulseView.swift */; };
 		A10000000000000000000035 /* RestTimerLabel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000034 /* RestTimerLabel.swift */; };
+		A10000000000000000000036 /* RestStory.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000038 /* RestStory.swift */; };
+		A10000000000000000000037 /* RestStoryPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000039 /* RestStoryPlayer.swift */; };
+		A1000000000000000000003A /* CheckInMoment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000003C /* CheckInMoment.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -49,6 +52,9 @@
 		A10000000000000000000030 /* AppClock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppClock.swift; sourceTree = "<group>"; };
 		A10000000000000000000032 /* ClockPulseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClockPulseView.swift; sourceTree = "<group>"; };
 		A10000000000000000000034 /* RestTimerLabel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestTimerLabel.swift; sourceTree = "<group>"; };
+		A10000000000000000000038 /* RestStory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestStory.swift; sourceTree = "<group>"; };
+		A10000000000000000000039 /* RestStoryPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestStoryPlayer.swift; sourceTree = "<group>"; };
+		A1000000000000000000003C /* CheckInMoment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckInMoment.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -91,6 +97,9 @@
 				A10000000000000000000030 /* AppClock.swift */,
 				A10000000000000000000032 /* ClockPulseView.swift */,
 				A10000000000000000000034 /* RestTimerLabel.swift */,
+				A10000000000000000000038 /* RestStory.swift */,
+				A10000000000000000000039 /* RestStoryPlayer.swift */,
+				A1000000000000000000003C /* CheckInMoment.swift */,
 				A10000000000000000000027 /* Assets.xcassets */,
 			);
 			path = EyeHaven;
@@ -192,6 +201,9 @@
 				A10000000000000000000031 /* AppClock.swift in Sources */,
 				A10000000000000000000033 /* ClockPulseView.swift in Sources */,
 				A10000000000000000000035 /* RestTimerLabel.swift in Sources */,
+				A10000000000000000000036 /* RestStory.swift in Sources */,
+				A10000000000000000000037 /* RestStoryPlayer.swift in Sources */,
+				A1000000000000000000003A /* CheckInMoment.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -251,6 +263,7 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIBackgroundModes = audio;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -283,6 +296,7 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIBackgroundModes = audio;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";

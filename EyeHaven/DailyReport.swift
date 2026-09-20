@@ -36,7 +36,9 @@ struct DayRecord: Codable, Identifiable, Equatable {
     var alertSent: Bool
     var quotaAlertSent: Bool
 
-    var usedMinutes: Int { usedSeconds / 60 }
+    var usedMinutes: Int {
+        usedSeconds <= 0 ? 0 : Int((Double(usedSeconds) / 60.0).rounded())
+    }
 
     static func empty(dayKey: String) -> DayRecord {
         DayRecord(
@@ -124,6 +126,13 @@ final class DailyReport {
         ([today] + history).prefix(7).map { $0 }
     }
 
+    /// Check-ins that belong to the current local day. Older ones stay stored but stay off today's lists.
+    var todaysCheckIns: [CheckInEvent] {
+        rolloverIfNeeded()
+        let key = today.dayKey
+        return checkIns.filter { Self.dayKey(for: $0.at) == key }
+    }
+
     func remainingSeconds(dailyLimitMinutes: Int) -> Int {
         rolloverIfNeeded()
         return max(0, dailyLimitMinutes * 60 - today.usedSeconds)
@@ -167,7 +176,7 @@ final class DailyReport {
         checkIns.insert(event, at: 0)
         checkIns = Array(checkIns.prefix(20))
         if bonusMinutes > 0 {
-            nextBonusMinutes = min(ExtraRestReward.nextUseMinutes, bonusMinutes)
+            nextBonusMinutes = min(ExtraRestReward.nextUseMinutes, max(0, bonusMinutes))
         }
         persist()
     }
@@ -177,6 +186,12 @@ final class DailyReport {
         nextBonusMinutes = 0
         persist()
         return bonus
+    }
+
+    func grantBonus(_ minutes: Int) {
+        guard minutes > 0 else { return }
+        nextBonusMinutes = min(ExtraRestReward.nextUseMinutes, minutes)
+        persist()
     }
 
     @discardableResult
@@ -209,7 +224,7 @@ final class DailyReport {
         } else {
             skippedLine = "未完成休息 \(today.skippedRests) 次。"
         }
-        let failLines = checkIns.filter { !$0.succeeded }.prefix(8).map(\.summary)
+        let failLines = todaysCheckIns.filter { !$0.succeeded }.prefix(8).map(\.summary)
         let failBlock = failLines.isEmpty ? "没有打卡失败记录" : failLines.joined(separator: "\n")
         return """
         EyeHaven 今日报告
@@ -226,7 +241,7 @@ final class DailyReport {
     private func rolloverIfNeeded() {
         let key = Self.dayKey(for: Date())
         guard today.dayKey != key else { return }
-        if today.usedSeconds > 0 || today.completedRests > 0 || today.skippedRests > 0 {
+        if today.usedSeconds > 0 || today.completedRests > 0 || today.skippedRests > 0 || today.distancePasses > 0 {
             history.insert(today, at: 0)
             history = Array(history.prefix(14))
         }

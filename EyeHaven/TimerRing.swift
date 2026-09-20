@@ -4,6 +4,7 @@ struct TimerRing: View {
     var progress: Double
     var timeText: String
     var caption: String = "剩余"
+    var timeFontSize: CGFloat = 48
 
     var body: some View {
         ZStack {
@@ -23,13 +24,16 @@ struct TimerRing: View {
 
             VStack(spacing: 6) {
                 Text(timeText)
-                    .font(.system(size: 48, weight: .light, design: .rounded))
+                    .font(.system(size: timeFontSize, weight: .light, design: .rounded))
                     .monospacedDigit()
+                    .minimumScaleFactor(0.7)
+                    .lineLimit(1)
                     .foregroundStyle(Palette.dusk)
                 Text(caption)
                     .font(.caption)
                     .foregroundStyle(Palette.pine.opacity(0.7))
             }
+            .padding(.horizontal, 20)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(caption) \(timeText)")

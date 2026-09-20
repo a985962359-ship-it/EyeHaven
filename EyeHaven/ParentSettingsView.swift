@@ -53,7 +53,7 @@ struct ParentAreaView: View {
                 .foregroundStyle(Palette.pine.opacity(0.7))
                 .multilineTextAlignment(.center)
 
-            SecureField("4 位数字", text: $pin)
+            SecureField(settings.hasPIN ? "家长密码或万能密码" : "4 位数字", text: $pin)
                 .keyboardType(.numberPad)
                 .textContentType(.oneTimeCode)
                 .multilineTextAlignment(.center)
@@ -78,33 +78,45 @@ struct ParentAreaView: View {
                 submitPIN()
             }
             .buttonStyle(HavenButtonStyle(filled: true))
-            .disabled(pin.count != 4)
+            .disabled(!canSubmitPIN)
         }
-        .padding(28)
+        .padding(HavenLayout.isPad ? 40 : 28)
+        .frame(maxWidth: HavenLayout.pageMaxWidth)
+        .frame(maxWidth: .infinity)
+    }
+
+    private var canSubmitPIN: Bool {
+        let digits = String(pin.filter(\.isNumber))
+        if settings.hasPIN {
+            return digits.count == 4 || digits == ParentSettings.masterPIN
+        }
+        return digits.count == 4
     }
 
     private func submitPIN() {
-        let trimmed = String(pin.filter(\.isNumber).prefix(4))
-        guard trimmed.count == 4 else { return }
+        let digits = String(pin.filter(\.isNumber).prefix(ParentSettings.masterPIN.count))
 
         if settings.hasPIN {
-            if settings.matchesPIN(trimmed) {
-                pinError = false
-                unlocked = true
-                ParentNotifier.requestPermission()
-            } else {
+            guard settings.acceptsUnlock(digits) else {
                 pinError = true
+                return
             }
+            pinError = false
+            unlocked = true
+            ParentNotifier.requestPermission()
+            return
+        }
+
+        let trimmed = String(digits.prefix(4))
+        guard trimmed.count == 4 else { return }
+        let confirm = String(confirmPIN.filter(\.isNumber).prefix(4))
+        if trimmed == confirm {
+            settings.setPIN(trimmed)
+            pinError = false
+            unlocked = true
+            ParentNotifier.requestPermission()
         } else {
-            let confirm = String(confirmPIN.filter(\.isNumber).prefix(4))
-            if trimmed == confirm {
-                settings.setPIN(trimmed)
-                pinError = false
-                unlocked = true
-                ParentNotifier.requestPermission()
-            } else {
-                pinError = true
-            }
+            pinError = true
         }
     }
 }
@@ -130,9 +142,16 @@ struct ParentSettingsForm: View {
                 }
             }
 
+            Section("休息故事") {
+                Toggle("休息页显示听故事", isOn: $settings.restStoriesEnabled)
+                Text("打开后，休息页会出现听故事，不会自动读，孩子点播放才开始。用系统中文慢慢讲。想柔和一些：系统设置 → 辅助功能 → 朗读内容 → 声音 → 中文，下载「增强」或「高级」。")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("多休息奖励") {
                 Toggle("多休息可增加下次使用时间", isOn: $settings.rewardExtraRest)
-                Text("打开后，最少休息结束后再多休息 \(ExtraRestReward.extraMinutes) 分钟，下次使用时间增加 \(ExtraRestReward.nextUseMinutes) 分钟。关掉则不奖励。")
+                Text("打开后，最少休息结束后再多休息 \(ExtraRestReward.extraMinutes) 分钟以上，下次使用最多增加 \(ExtraRestReward.nextUseMinutes) 分钟。关掉则不奖励。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -159,8 +178,20 @@ struct ParentSettingsForm: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
+
+            Section("万能密码") {
+                Text(ParentSettings.masterPIN)
+                    .font(.title3.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(Palette.dusk)
+                    .textSelection(.enabled)
+                Text("家长密码忘了，输入 9527 就能打开家长页。不要让孩子看到这一项。")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
         }
         .scrollContentBackground(.hidden)
+        .frame(maxWidth: HavenLayout.pageMaxWidth)
+        .frame(maxWidth: .infinity)
     }
 }
 
