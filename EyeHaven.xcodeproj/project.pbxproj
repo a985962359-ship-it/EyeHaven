@@ -29,6 +29,8 @@
 		A10000000000000000000036 /* RestStory.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000038 /* RestStory.swift */; };
 		A10000000000000000000037 /* RestStoryPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000039 /* RestStoryPlayer.swift */; };
 		A1000000000000000000003A /* CheckInMoment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000003C /* CheckInMoment.swift */; };
+		A1000000000000000000003E /* BedtimeStory.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000003D /* BedtimeStory.swift */; };
+		A10000000000000000000043 /* SerialStory.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000003F /* SerialStory.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -55,6 +57,8 @@
 		A10000000000000000000038 /* RestStory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestStory.swift; sourceTree = "<group>"; };
 		A10000000000000000000039 /* RestStoryPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestStoryPlayer.swift; sourceTree = "<group>"; };
 		A1000000000000000000003C /* CheckInMoment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckInMoment.swift; sourceTree = "<group>"; };
+		A1000000000000000000003D /* BedtimeStory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BedtimeStory.swift; sourceTree = "<group>"; };
+		A1000000000000000000003F /* SerialStory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SerialStory.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -100,6 +104,8 @@
 				A10000000000000000000038 /* RestStory.swift */,
 				A10000000000000000000039 /* RestStoryPlayer.swift */,
 				A1000000000000000000003C /* CheckInMoment.swift */,
+				A1000000000000000000003D /* BedtimeStory.swift */,
+				A1000000000000000000003F /* SerialStory.swift */,
 				A10000000000000000000027 /* Assets.xcassets */,
 			);
 			path = EyeHaven;
@@ -204,6 +210,8 @@
 				A10000000000000000000036 /* RestStory.swift in Sources */,
 				A10000000000000000000037 /* RestStoryPlayer.swift in Sources */,
 				A1000000000000000000003A /* CheckInMoment.swift in Sources */,
+				A1000000000000000000003E /* BedtimeStory.swift in Sources */,
+				A10000000000000000000043 /* SerialStory.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

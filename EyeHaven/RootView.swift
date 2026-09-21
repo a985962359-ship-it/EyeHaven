@@ -42,7 +42,7 @@ struct RootView: View {
             HomeView()
                 .tabItem { Label("使用", systemImage: "eye") }
             TipsView()
-                .tabItem { Label("护眼", systemImage: "leaf") }
+                .tabItem { Label("故事", systemImage: "moon.stars") }
             ParentAreaView()
                 .tabItem { Label("家长", systemImage: "lock") }
         }

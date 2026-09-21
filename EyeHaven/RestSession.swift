@@ -154,6 +154,7 @@ enum ExtraRestReward {
 /// 5. More than 2 minutes late: record 未按时, still rest, no celebration.
 /// 6. Kill: working continues on wall-clock; pause without lock fails; resting fails.
 /// 7. Pause: background resumes immediately; real lockstate re-pauses. Rest: background warns and freezes.
+/// 8. 故事页 / TipsView / BedtimeStory 只展示文字。禁止接到本文件、通知、朗读或锁屏。
 @MainActor
 @Observable
 final class RestSession {
