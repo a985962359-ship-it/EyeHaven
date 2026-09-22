@@ -20,18 +20,15 @@ struct TipsView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 14) {
                         VStack(spacing: 10) {
-                            Image("Guangguang")
-                                .resizable()
-                                .scaledToFit()
-                                .frame(
-                                    width: HavenLayout.isPad ? 280 : 220,
-                                    height: HavenLayout.isPad ? 280 : 220
-                                )
-                                .frame(maxWidth: .infinity)
+                            GuangguangTalking(
+                                talking: false,
+                                size: HavenLayout.isPad ? 280 : 220
+                            )
+                            .frame(maxWidth: .infinity)
                             Text("光光")
                                 .font(HavenLayout.isPad ? .title.weight(.bold) : .title2.weight(.bold))
                                 .foregroundStyle(Palette.dusk)
-                            Text("写故事的小机器人。胸口一盏暖灯，每晚只问一个真问题。")
+                            Text("写故事的小机器人。胸口一盏暖灯。假的不要，真的才肯收回去。")
                                 .font(.subheadline)
                                 .foregroundStyle(Palette.pine.opacity(0.75))
                                 .multilineTextAlignment(.center)
@@ -285,6 +282,12 @@ struct BedtimeStoryPage: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                GuangguangTalking(
+                    talking: true,
+                    size: HavenLayout.isPad ? 180 : 132
+                )
+                .frame(maxWidth: .infinity)
+
                 Text("小为什么 · \(story.age.rawValue)")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Palette.gold)
@@ -313,6 +316,12 @@ struct SerialEpisodePage: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                GuangguangTalking(
+                    talking: episode.text != nil,
+                    size: HavenLayout.isPad ? 180 : 132
+                )
+                .frame(maxWidth: .infinity)
+
                 Text(seriesTitle)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Palette.gold)
@@ -346,6 +355,28 @@ struct SerialEpisodePage: View {
         }
         .background(Palette.foam.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// 故事页里的光光。身子不晃。读书时只换嘴巴和手。不要接到计时或朗读。
+private struct GuangguangTalking: View {
+    var talking: Bool
+    var size: CGFloat
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 0.22, paused: !talking)) { context in
+            Image(Self.frameName(talking: talking, date: context.date))
+                .resizable()
+                .scaledToFit()
+                .frame(width: size, height: size)
+                .accessibilityLabel("光光")
+        }
+    }
+
+    private static func frameName(talking: Bool, date: Date) -> String {
+        guard talking else { return "Guangguang" }
+        let open = Int(date.timeIntervalSinceReferenceDate / 0.22) % 2 == 0
+        return open ? "GuangguangTalkA" : "GuangguangTalkB"
     }
 }
 
