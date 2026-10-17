@@ -12,51 +12,56 @@ struct HomeView: View {
         ZStack {
             background
 
-            ScrollView {
-            VStack(spacing: HavenLayout.isPad ? 28 : 24) {
-                header
+            // 一屏看完，不再下拉滚动；详细记录在「家长设置 → 报告」
+            VStack(spacing: HavenLayout.isPad ? 20 : 14) {
+                compactHeader
+
+                Spacer(minLength: 4)
+
+                // 开始前可拖：家长设定为上限，只能减到更短；开始后不能拖
                 TimerRing(
-                    progress: session.progress,
-                    timeText: session.phase == .idle
-                        ? session.nextUseDuration.clockString
-                        : session.remaining(at: clock.now).clockString,
-                    caption: session.phase == .idle ? "本次使用" : "剩余",
-                    timeFontSize: HavenLayout.timerRingFont
+                    progress: ringProgress,
+                    timeText: timerText,
+                    caption: "剩余",
+                    timeFontSize: HavenLayout.isPad ? 56 : 44,
+                    scrubEnabled: session.phase == .idle,
+                    onScrub: { session.scrubPlannedMinutes(toProgress: $0) }
                 )
-                .frame(width: HavenLayout.timerRingSize, height: HavenLayout.timerRingSize)
-                .padding(.vertical, 8)
+                .frame(
+                    width: HavenLayout.isPad ? 240 : 200,
+                    height: HavenLayout.isPad ? 240 : 200
+                )
+                .padding(10)
 
                 Text(session.headline)
-                    .font(HavenLayout.isPad ? .title.weight(.semibold) : .title2.weight(.semibold))
+                    .font(HavenLayout.isPad ? .title2.weight(.semibold) : .title3.weight(.semibold))
                     .foregroundStyle(Palette.dusk)
                     .multilineTextAlignment(.center)
-
-                Text(session.subtitle)
-                    .font(HavenLayout.isPad ? .body : .subheadline)
-                    .foregroundStyle(Palette.pine.opacity(0.72))
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
 
                 controls
 
                 if settings.rewardExtraRest, report.nextBonusMinutes > 0 {
                     Text("下次使用奖励 +\(report.nextBonusMinutes) 分钟")
-                        .font(.subheadline.weight(.semibold))
+                        .font(.caption.weight(.semibold))
                         .foregroundStyle(Palette.gold)
                 }
 
-                checkInList
+                Spacer(minLength: 4)
+
+                todaySummaryBar
             }
-            .padding(.horizontal, HavenLayout.isPad ? 40 : 28)
-            .padding(.vertical, 24)
+            .padding(.horizontal, HavenLayout.isPad ? 36 : 24)
+            .padding(.top, HavenLayout.isPad ? 20 : 12)
+            .padding(.bottom, HavenLayout.isPad ? 16 : 10)
             .frame(maxWidth: HavenLayout.pageMaxWidth)
-            .frame(maxWidth: .infinity)
-            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .animation(.easeInOut(duration: 0.35), value: session.phase)
+        .animation(.easeInOut(duration: 0.25), value: session.phase)
         .onChange(of: settings.workMinutes) { _, _ in session.apply(settings) }
         .onChange(of: settings.restMinutes) { _, _ in session.apply(settings) }
-        .onChange(of: settings.dailyLimitMinutes) { _, _ in session.apply(settings) }
+        .onChange(of: settings.dailyUseLimit) { _, _ in session.apply(settings) }
         .onChange(of: settings.skippedRestAlertCount) { _, _ in session.apply(settings) }
         .onChange(of: settings.rewardExtraRest) { _, _ in session.apply(settings) }
         .onChange(of: settings.restStoriesEnabled) { _, on in
@@ -77,72 +82,84 @@ struct HomeView: View {
         }
     }
 
-    private var checkInList: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("打卡记录")
-                .font(.headline)
-                .foregroundStyle(Palette.dusk)
-
-            Text("今天已用 \(report.today.usedMinutes) / \(settings.dailyLimitMinutes) 分钟 · 未休息 \(report.today.skippedRests) 次")
-                .font(.footnote)
-                .foregroundStyle(Palette.moss)
-
-            if report.todaysCheckIns.isEmpty {
-                Text("还没有打卡记录")
-                    .font(.subheadline)
-                    .foregroundStyle(Palette.pine.opacity(0.7))
-            } else {
-                ForEach(report.todaysCheckIns.prefix(8)) { event in
-                    checkInRow(event)
-                }
-            }
+    private var timerText: String {
+        if session.phase == .idle {
+            return session.nextUseDuration.minutesOnlyString
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.top, 8)
+        return session.remaining(at: clock.now).minutesOnlyString
     }
 
-    private func checkInRow(_ event: CheckInEvent) -> some View {
-        HStack(alignment: .center, spacing: 12) {
-            Text(event.succeeded ? "😊" : "😭")
-                .font(.title)
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text(event.succeeded ? "爱眼成功" : "眼睛在受伤")
-                        .font(.headline)
-                        .foregroundStyle(event.succeeded ? Palette.pine : Color(red: 0.72, green: 0.28, blue: 0.18))
-                    Text(event.at, format: .dateTime.hour().minute())
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(Palette.pine.opacity(0.6))
-                }
-                Text(event.succeeded ? successDetail(event) : (event.skipReason ?? "没有完成休息"))
-                    .font(.footnote)
-                    .foregroundStyle(event.succeeded ? Palette.moss : .orange)
+    /// 圆环按「剩余比例」画：空闲=计划剩余/家长上限；使用中=1−已用比例
+    private var ringProgress: Double {
+        if session.phase == .idle {
+            return session.plannedProgress
+        }
+        return min(1, max(0, 1 - session.progress))
+    }
+
+    /// 顶栏：标题 + 规则一行，不再占大卡片
+    private var compactHeader: some View {
+        HStack(alignment: .center, spacing: 10) {
+            Image(systemName: "eye.circle.fill")
+                .font(.title2)
+                .symbolRenderingMode(.palette)
+                .foregroundStyle(Palette.moss, Palette.sage.opacity(0.55))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("护眼计时")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(Palette.pine)
+                Text(headerDetail)
+                    .font(.caption2)
+                    .foregroundStyle(Palette.pine.opacity(0.65))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
             Spacer(minLength: 0)
-            if event.succeeded, event.bonusMinutes > 0 {
-                Text("+\(event.bonusMinutes) 分")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Palette.foam)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Capsule().fill(Palette.gold))
-            }
         }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(event.succeeded ? Palette.sage.opacity(0.28) : Color.orange.opacity(0.16))
+    }
+
+    /// 今日摘要一条，详细列表去家长报告看
+    private var todaySummaryBar: some View {
+        let overtime = report.today.overtimeMinutes
+        return HStack(spacing: 8) {
+            summaryChip(
+                title: "已用",
+                value: "\(report.today.usedSessions)/\(settings.dailyUseLimit)",
+                // 只有超时还不休息超过 5 分钟才记超时，红字写在这里
+                redDetail: overtime > 0 ? "超时\(overtime)分" : nil
+            )
+            summaryChip(title: "休息", value: "\(report.today.completedRests)")
+            summaryChip(title: "未休息", value: "\(report.today.skippedRests)")
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            overtime > 0
+                ? "今天已用 \(report.today.usedSessions) 次，上限 \(settings.dailyUseLimit) 次，超时 \(overtime) 分钟，完成休息 \(report.today.completedRests) 次，未休息 \(report.today.skippedRests) 次"
+                : "今天已用 \(report.today.usedSessions) 次，上限 \(settings.dailyUseLimit) 次，完成休息 \(report.today.completedRests) 次，未休息 \(report.today.skippedRests) 次"
         )
     }
 
-    private func successDetail(_ event: CheckInEvent) -> String {
-        if event.bonusMinutes > 0 {
-            return "多休息 \(event.extraMinutes) 分，下次使用奖励 +\(event.bonusMinutes) 分钟"
+    private func summaryChip(title: String, value: String, redDetail: String? = nil) -> some View {
+        VStack(spacing: 2) {
+            Text(value)
+                .font(.subheadline.weight(.bold).monospacedDigit())
+                .foregroundStyle(Palette.dusk)
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(Palette.pine.opacity(0.65))
+            if let redDetail {
+                Text(redDetail)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.red)
+            }
         }
-        if event.extraMinutes > 0 {
-            return "多休息 \(event.extraMinutes) 分，眼睛会记得"
-        }
-        return "你保护了自己的眼睛"
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Palette.foam.opacity(0.92))
+        )
     }
 
     private var background: some View {
@@ -156,26 +173,8 @@ struct HomeView: View {
         .ignoresSafeArea()
     }
 
-    private var header: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("EYE HAVEN")
-                    .font(.caption.weight(.semibold))
-                    .tracking(2.4)
-                    .foregroundStyle(Palette.gold)
-                Text("护眼使用")
-                    .font(.title.weight(.bold))
-                    .foregroundStyle(Palette.pine)
-                Text(headerDetail)
-                    .font(.caption)
-                    .foregroundStyle(Palette.pine.opacity(0.7))
-            }
-            Spacer()
-        }
-    }
-
     private var headerDetail: String {
-        let distance = settings.requireDistanceCheck ? "开始前至少 \(settings.minimumDistanceCm) 厘米" : "未开启测距"
+        let distance = settings.requireDistanceCheck ? "测距 \(settings.minimumDistanceCm) 厘米" : "未开测距"
         return "用 \(settings.workMinutes) 分 · 休息 \(settings.restMinutes) 分 · \(distance)"
     }
 
@@ -186,7 +185,7 @@ struct HomeView: View {
 
     private func beginSession() {
         session.attach(report: report, settings: settings)
-        guard !report.isDailyCapReached(dailyLimitMinutes: settings.dailyLimitMinutes) else { return }
+        guard !report.isDailyCapReached(dailyUseLimit: settings.dailyUseLimit) else { return }
         if settings.requireDistanceCheck {
             showDistanceGate = true
         } else {
@@ -210,7 +209,7 @@ struct HomeView: View {
             case .idle:
                 Button("开始使用") { beginSession() }
                     .buttonStyle(HavenButtonStyle(filled: true))
-                    .disabled(report.isDailyCapReached(dailyLimitMinutes: settings.dailyLimitMinutes))
+                    .disabled(report.isDailyCapReached(dailyUseLimit: settings.dailyUseLimit))
             }
         }
     }
@@ -229,9 +228,15 @@ struct HavenButtonStyle: ButtonStyle {
             .background(
                 Capsule()
                     .fill(filled ? Palette.pine : Palette.sage.opacity(0.25))
+                    .shadow(
+                        color: filled ? Palette.pine.opacity(0.22) : .clear,
+                        radius: configuration.isPressed ? 2 : 6,
+                        y: configuration.isPressed ? 1 : 3
+                    )
             )
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .opacity(isEnabled ? 1 : 0.45)
+            .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
     }
 }
 

@@ -127,10 +127,13 @@ struct ParentSettingsForm: View {
     var body: some View {
         @Bindable var settings = settings
         return Form {
-            Section("每天总时长") {
-                Stepper(value: $settings.dailyLimitMinutes, in: 1...240, step: 1) {
-                    Text("每天最多使用 \(settings.dailyLimitMinutes) 分钟")
+            Section("每天使用次数") {
+                Stepper(value: $settings.dailyUseLimit, in: 1...30, step: 1) {
+                    Text("每天最多使用 \(settings.dailyUseLimit) 次")
                 }
+                Text("每点一次「开始使用」消耗 1 次。")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
 
             Section("使用与休息") {
@@ -142,32 +145,36 @@ struct ParentSettingsForm: View {
                 }
             }
 
-            Section("休息故事") {
-                Toggle("休息页显示听故事", isOn: $settings.restStoriesEnabled)
-                Text("打开后，休息页会出现听故事，不会自动读，孩子点播放才开始。用系统中文慢慢讲。想柔和一些：系统设置 → 辅助功能 → 朗读内容 → 声音 → 中文，下载「增强」或「高级」。")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section("多休息奖励") {
-                Toggle("多休息可增加下次使用时间", isOn: $settings.rewardExtraRest)
-                Text("打开后，最少休息结束后再多休息 \(ExtraRestReward.extraMinutes) 分钟以上，下次使用最多增加 \(ExtraRestReward.nextUseMinutes) 分钟。关掉则不奖励。")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section("眼睛到屏幕的距离") {
-                Toggle("每次开始使用前测距离", isOn: $settings.requireDistanceCheck)
+            Section("摄像头测距") {
+                Toggle(settings.requireDistanceCheck ? "已打开测距" : "已关闭测距", isOn: $settings.requireDistanceCheck)
                 if settings.requireDistanceCheck {
                     Stepper(value: $settings.minimumDistanceCm, in: 30...80, step: 5) {
                         Text("至少 \(settings.minimumDistanceCm) 厘米才可以开始")
                     }
+                    Text("打开后：每次点「开始使用」会开前置摄像头测一次距离，测完立刻关掉。测不过时，把上面开关关掉即可。")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("关闭后：不再开摄像头，点「开始使用」直接计时。")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
-                Text(settings.requireDistanceCheck
-                     ? "每次点「开始使用」都会测一次，测完立刻关摄像头。若机型、模拟器或摄像头导致测不过，可以关掉这项。"
-                     : "已关闭。点「开始使用」会直接进入计时，避免测距失败拦着孩子。")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+            }
+
+            Section("休息故事") {
+                Toggle("休息页显示听故事", isOn: $settings.restStoriesEnabled)
+            }
+
+            Section("多休息奖励") {
+                Toggle("多休息可增加下次使用时间", isOn: $settings.rewardExtraRest)
+                if settings.rewardExtraRest {
+                    Stepper(value: $settings.rewardBonusMinutes, in: 1...ExtraRestReward.maxBonusMinutes, step: 1) {
+                        Text("每次最多奖励 \(settings.rewardBonusMinutes) 分钟")
+                    }
+                    Text("最少休息结束后再多休息 \(ExtraRestReward.extraMinutes) 分钟以上，才按规则给奖励；每次奖励不超过上面设定的分钟数（最多 \(ExtraRestReward.maxBonusMinutes) 分钟）。")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Section("未休息提醒") {
@@ -177,6 +184,14 @@ struct ParentSettingsForm: View {
                 Text("每次打卡失败都会在本机弹出家长通知，并写进「家长 → 报告」。达到设定次数会再发一条汇总。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+            }
+
+            Section {
+                MembershipPaywallView(compact: true)
+            } header: {
+                Text("光光知识会员")
+            } footer: {
+                Text("护眼计时、休息、打卡永远免费。会员只加知识更新、好听声音和每周报告。")
             }
 
             Section("万能密码") {
@@ -199,4 +214,5 @@ struct ParentSettingsForm: View {
     ParentAreaView()
         .environment(ParentSettings())
         .environment(DailyReport())
+        .environment(MembershipStore.shared)
 }

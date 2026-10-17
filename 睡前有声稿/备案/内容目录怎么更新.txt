@@ -1,0 +1,28 @@
+眼睛闹钟 · 内容目录（程序与内容分开）
+====================================
+
+目录文件（网上）：
+https://raw.githubusercontent.com/a985962359-ship-it/EyeHaven/audio-cdn/bedtime-catalog/content-catalog.json
+
+本地安装包里也有一份兜底：EyeHaven/BedtimeContentCatalog.json
+
+打开 App 或进「故事」页会自动刷新；故事页可下拉刷新。
+
+你要加「小说」类时，只需改网上的 content-catalog.json：
+1. 在 shelves 里加一项，例如：
+   {
+     "id": "novel",
+     "title": "光光讲小说",
+     "badge": "小说",
+     "blurb": "短篇故事，睡前能听完。",
+     "footer": "原创短篇。",
+     "coverImage": null,
+     "usesFairyGroups": false,
+     "sort": 6
+   }
+2. 在 stories 里加篇目，shelf 写成 "novel"，age 写 "child" 或 "youth"。
+3. 对应语音仍放在 bedtime-audio/ 下（编号.mp3），漫画可放 BedtimeComics/编号/。
+
+改完推到 audio-cdn 分支后，用户打开 App 就会看到新类，一般不用更新软件。
+
+注意：封面图 coverImage 若写资源名，须 App 里已有那张图；没有就写 null，显示黄底徽章。

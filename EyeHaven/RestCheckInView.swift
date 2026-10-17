@@ -3,109 +3,69 @@ import SwiftUI
 struct RestCheckInView: View {
     @Environment(RestSession.self) private var session
     @Environment(ParentSettings.self) private var settings
-    @Environment(DailyReport.self) private var report
-    @Environment(RestStoryPlayer.self) private var stories
-    @State private var showDistanceGate = false
+    @State private var audio = BedtimeAudioPlayer.shared
 
     var body: some View {
         ZStack {
-            Palette.foam
-                .ignoresSafeArea()
+            RestBalconyBackground()
 
-            GeometryReader { geo in
-                ScrollView {
-                    VStack(spacing: HavenLayout.isPad ? 32 : 24) {
-                        if session.phase == .restExtra, !session.checkInWasLate {
-                            Text("😊 爱眼成功")
-                                .font(.caption.weight(.heavy))
-                                .tracking(1.2)
-                                .foregroundStyle(Palette.pine)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(Capsule().fill(Palette.gold.opacity(0.85)))
-                        }
+            VStack(spacing: 0) {
+                Spacer(minLength: HavenLayout.isPad ? 40 : 24)
 
-                        Text(extraRestTitle)
-                            .font(HavenLayout.isPad ? .largeTitle.weight(.bold) : .title.weight(.bold))
+                VStack(spacing: HavenLayout.isPad ? 28 : 18) {
+                    if session.phase == .restExtra, !session.checkInWasLate {
+                        Text("😊 爱眼成功")
+                            .font(.caption.weight(.heavy))
+                            .tracking(1.2)
                             .foregroundStyle(Palette.pine)
-                            .multilineTextAlignment(.center)
-                            .minimumScaleFactor(0.7)
-
-                        RestTimerLabel(
-                            restDuration: session.restDuration,
-                            sessionEndDate: session.restAnchorDate,
-                            countUp: session.phase == .restExtra,
-                            frozenRemaining: session.restLeaveDisplayFrozen,
-                            fontSize: HavenLayout.restTimerFont
-                        )
-                        .frame(maxWidth: .infinity)
-                        .frame(height: HavenLayout.restTimerHeight)
-
-                        Text(statusLine)
-                            .font(HavenLayout.isPad ? .title2 : .title3)
-                            .foregroundStyle(Palette.pine)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
-
-                        if settings.rewardExtraRest {
-                            Text("多休息 \(ExtraRestReward.extraMinutes) 分钟以上，下次使用最多增加 \(ExtraRestReward.nextUseMinutes) 分钟")
-                                .font(HavenLayout.isPad ? .title3.weight(.semibold) : .headline)
-                                .foregroundStyle(Palette.gold)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, 24)
-                        }
-
-                        Text(hintLine)
-                            .font(HavenLayout.isPad ? .body : .subheadline)
-                            .foregroundStyle(Palette.moss)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 32)
-
-                        if settings.restStoriesEnabled {
-                            storyPanel
-                        }
-
-                        if session.phase == .restExtra {
-                            Button("开始使用") {
-                                beginNextUse()
-                            }
-                            .buttonStyle(HavenButtonStyle(filled: true))
-                        }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Capsule().fill(Palette.gold.opacity(0.85)))
                     }
-                    .padding(HavenLayout.isPad ? 36 : 20)
-                    .frame(maxWidth: HavenLayout.pageMaxWidth)
-                    .frame(maxWidth: .infinity, minHeight: geo.size.height)
+
+                    Text(extraRestTitle)
+                        .font(HavenLayout.isPad ? .largeTitle.weight(.bold) : .title.weight(.bold))
+                        .foregroundStyle(Palette.pine)
+                        .multilineTextAlignment(.center)
+                        .minimumScaleFactor(0.7)
+                        .restTextGlow()
+
+                    RestTimerLabel(
+                        restDuration: session.restDuration,
+                        sessionEndDate: session.restAnchorDate,
+                        countUp: session.phase == .restExtra,
+                        frozenRemaining: session.restLeaveDisplayFrozen,
+                        fontSize: HavenLayout.restTimerFont
+                    )
+                    .frame(maxWidth: .infinity)
+                    .frame(height: HavenLayout.restTimerHeight)
+                    .restTextGlow()
                 }
-                .scrollBounceBehavior(.basedOnSize)
+                .padding(.horizontal, HavenLayout.isPad ? 36 : 20)
+
+                Spacer(minLength: 16)
+
+                // 听故事文字和按钮贴在屏幕下方
+                VStack(spacing: 14) {
+                    if settings.restStoriesEnabled {
+                        storyPanel
+                    }
+                    if session.phase == .restExtra {
+                        Button("开始使用") {
+                            // 先回眼睛闹钟首页，再由孩子自己点开始；不直接开计时
+                            session.endExtraRest(grantBonus: true)
+                        }
+                        .buttonStyle(HavenButtonStyle(filled: true))
+                    }
+                }
+                .padding(.horizontal, HavenLayout.isPad ? 36 : 20)
+                .padding(.bottom, HavenLayout.isPad ? 36 : 28)
+                .frame(maxWidth: HavenLayout.pageMaxWidth)
+                .frame(maxWidth: .infinity)
             }
         }
         .onAppear {
             session.restPageDidAppear()
-            stories.apply(enabled: settings.restStoriesEnabled)
-        }
-        .onChange(of: settings.restStoriesEnabled) { _, on in
-            stories.apply(enabled: on)
-        }
-        .fullScreenCover(isPresented: $showDistanceGate) {
-            DistanceGateView(
-                thresholdCm: settings.minimumDistanceCm,
-                onPass: {
-                    showDistanceGate = false
-                    report.recordDistancePass()
-                    session.finishRestAndStartUsing()
-                },
-                onCancel: {
-                    showDistanceGate = false
-                }
-            )
-        }
-    }
-
-    private func beginNextUse() {
-        if settings.requireDistanceCheck {
-            showDistanceGate = true
-        } else {
-            session.finishRestAndStartUsing()
         }
     }
 
@@ -113,71 +73,97 @@ struct RestCheckInView: View {
         if session.phase == .restExtra {
             return session.checkInWasLate ? "先把休息做完" : "可以继续歇，奖励正在攒"
         }
-        return "现在请休息"
-    }
-
-    private var statusLine: String {
-        switch session.phase {
-        case .restDue:
-            return "打开这一页才开始休息"
-        case .restExtra:
-            return session.checkInWasLate
-                ? "来晚了，已记为未按时打卡。歇完仍可以开始下一段。"
-                : "打卡已经盖章。再多歇一会儿，下次使用可能加时。"
-        default:
-            return "请把设备放下，留在这一页"
-        }
-    }
-
-    private var hintLine: String {
-        if session.phase == .restExtra {
-            return "留在这一页或锁屏才算继续休息。切出去玩会马上开始下一段使用计时。"
-        }
-        if session.phase == .restDue {
-            return settings.restStoriesEnabled
-                ? "打开这一页才开始休息。开始后锁屏可以继续歇。切走会马上提醒你回来，10 秒内回来不算失败，超过 10 秒再回来会记失败。想听故事就点播放。"
-                : "打开这一页才开始休息。开始后锁屏可以继续歇。切走会马上提醒你回来，10 秒内回来不算失败，超过 10 秒再回来会记失败。"
-        }
-        return settings.restStoriesEnabled
-            ? "休息已经开始。请留在这一页或锁屏。切走会马上提醒你回来，10 秒内回来不算失败，超过 10 秒再回来会记失败。想听故事就点播放。"
-            : "休息已经开始。请留在这一页或锁屏。切走会马上提醒你回来，10 秒内回来不算失败，超过 10 秒再回来会记失败。"
+        return "休息中 看窗外远处可以保护眼睛"
     }
 
     private var storyPanel: some View {
-        VStack(spacing: 10) {
+        let story = audio.nowPlayingStory
+        return VStack(spacing: 10) {
             Text("闭上眼睛听")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Palette.gold)
-            Text(stories.current?.title ?? "点播放才开始读")
+                .restTextGlow()
+            Text(story?.title ?? "点播放才开始听")
                 .font(HavenLayout.isPad ? .title3.weight(.semibold) : .headline)
-                .foregroundStyle(Palette.dusk)
+                .foregroundStyle(Palette.pine)
                 .multilineTextAlignment(.center)
-            if let story = stories.current {
-                Text("大约 \(story.minutes) 分钟 · 听完自动下一则")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.pine.opacity(0.7))
-            } else {
-                Text("不会自动读。想听就点播放，不想听就放下设备休息。")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.pine.opacity(0.7))
-                    .multilineTextAlignment(.center)
-            }
+                .restTextGlow()
             HStack(spacing: 12) {
-                Button("下一则") { stories.playNext() }
+                Button("下一则") { audio.playRestNext() }
                     .buttonStyle(HavenButtonStyle(filled: false))
-                    .disabled(!stories.isSpeaking && stories.current == nil)
-                Button(stories.isPaused || !stories.isSpeaking ? "播放" : "暂停") {
-                    stories.togglePause()
+                    .disabled(audio.makeRestListeningQueue().isEmpty)
+                Button(audio.isPlaying ? "暂停" : "播放") {
+                    audio.toggleRestListening()
                 }
                 .buttonStyle(HavenButtonStyle(filled: true))
             }
         }
-        .padding(16)
+        .padding(.vertical, 8)
         .frame(maxWidth: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Palette.mist.opacity(0.9))
-        )
         .padding(.horizontal, 8)
+    }
+}
+
+private extension View {
+    /// 背景图不再蒙白，字用淡白描边保证可读
+    func restTextGlow() -> some View {
+        shadow(color: .white.opacity(0.95), radius: 3, y: 0)
+            .shadow(color: .white.opacity(0.7), radius: 8, y: 1)
+    }
+}
+
+/// 竖屏用竖版图，横屏用宽图；按焦点裁切，尽量保住光光、小女孩和远景。
+private struct RestBalconyBackground: View {
+    var body: some View {
+        GeometryReader { geo in
+            let layout = Self.layout(for: geo.size)
+            Image(layout.assetName)
+                .resizable()
+                .frame(width: layout.drawW, height: layout.drawH)
+                .position(x: layout.centerX, y: layout.centerY)
+        }
+        .ignoresSafeArea()
+        .clipped()
+    }
+
+    private struct Layout {
+        let assetName: String
+        let drawW: CGFloat
+        let drawH: CGFloat
+        let centerX: CGFloat
+        let centerY: CGFloat
+    }
+
+    private static func layout(for size: CGSize) -> Layout {
+        let w = size.width
+        let h = size.height
+        let tall = h > w * 1.05
+        // 竖屏 → 竖版图(约9:16)；横屏 → 宽图(约4:3，与资源一致)
+        let imgAspect: CGFloat = tall ? (9.0 / 16.0) : (4.0 / 3.0)
+        let viewAspect = w / max(h, 1)
+
+        let drawW: CGFloat
+        let drawH: CGFloat
+        if viewAspect > imgAspect {
+            drawW = w
+            drawH = w / imgAspect
+        } else {
+            drawH = h
+            drawW = h * imgAspect
+        }
+
+        // 焦点落在左下人物+阳台；竖屏略偏下，横屏偏左下兼顾远山夕阳
+        let focusX: CGFloat = tall ? 0.42 : 0.38
+        let focusY: CGFloat = tall ? 0.78 : 0.70
+        let x = min(0, max(w - drawW, w * 0.5 - drawW * focusX))
+        let y = min(0, max(h - drawH, h * 0.5 - drawH * focusY))
+
+        return Layout(
+            assetName: tall ? "RestBalconyBgPortrait" : "RestBalconyBg",
+            drawW: drawW,
+            drawH: drawH,
+            centerX: x + drawW / 2,
+            centerY: y + drawH / 2
+        )
     }
 }

@@ -15,6 +15,13 @@
 		A10000000000000000000015 /* TimerRing.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000025 /* TimerRing.swift */; };
 		A10000000000000000000016 /* TipsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000026 /* TipsView.swift */; };
 		A10000000000000000000017 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000027 /* Assets.xcassets */; };
+		A10000000000000000000044 /* BedtimeCatalog.json in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000045 /* BedtimeCatalog.json */; };
+		A10000000000000000000046 /* BedtimeAudioBundle in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000047 /* BedtimeAudioBundle */; };
+		A1000000000000000000004A /* BedtimeAudioManifest.json in Resources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000004B /* BedtimeAudioManifest.json */; };
+		A10000000000000000000048 /* BedtimeComics in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000049 /* BedtimeComics */; };
+		A1000000000000000000004C /* BedtimeRemoteAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000004D /* BedtimeRemoteAudio.swift */; };
+		A1000000000000000000004E /* BedtimeContentCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000004F /* BedtimeContentCatalog.swift */; };
+		A1000000000000000000005A /* BedtimeContentCatalog.json in Resources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000005B /* BedtimeContentCatalog.json */; };
 		A10000000000000000000018 /* ParentSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000028 /* ParentSettings.swift */; };
 		A10000000000000000000019 /* ParentSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000029 /* ParentSettingsView.swift */; };
 		A1000000000000000000001A /* DistanceChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002A /* DistanceChecker.swift */; };
@@ -31,6 +38,9 @@
 		A1000000000000000000003A /* CheckInMoment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000003C /* CheckInMoment.swift */; };
 		A1000000000000000000003E /* BedtimeStory.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000003D /* BedtimeStory.swift */; };
 		A10000000000000000000043 /* SerialStory.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000003F /* SerialStory.swift */; };
+		A1000000000000000000006A /* MembershipStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000006B /* MembershipStore.swift */; };
+		A1000000000000000000006C /* MembershipPaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000006D /* MembershipPaywallView.swift */; };
+		A10000000000000000000090 /* ComicImageCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000091 /* ComicImageCache.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -59,6 +69,17 @@
 		A1000000000000000000003C /* CheckInMoment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckInMoment.swift; sourceTree = "<group>"; };
 		A1000000000000000000003D /* BedtimeStory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BedtimeStory.swift; sourceTree = "<group>"; };
 		A1000000000000000000003F /* SerialStory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SerialStory.swift; sourceTree = "<group>"; };
+		A10000000000000000000045 /* BedtimeCatalog.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = BedtimeCatalog.json; sourceTree = "<group>"; };
+		A10000000000000000000047 /* BedtimeAudioBundle */ = {isa = PBXFileReference; lastKnownFileType = folder; path = BedtimeAudioBundle; sourceTree = "<group>"; };
+		A1000000000000000000004B /* BedtimeAudioManifest.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = BedtimeAudioManifest.json; sourceTree = "<group>"; };
+		A1000000000000000000004D /* BedtimeRemoteAudio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BedtimeRemoteAudio.swift; sourceTree = "<group>"; };
+		A1000000000000000000004F /* BedtimeContentCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BedtimeContentCatalog.swift; sourceTree = "<group>"; };
+		A1000000000000000000005B /* BedtimeContentCatalog.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = BedtimeContentCatalog.json; sourceTree = "<group>"; };
+		A10000000000000000000049 /* BedtimeComics */ = {isa = PBXFileReference; lastKnownFileType = folder; path = BedtimeComics; sourceTree = "<group>"; };
+		A1000000000000000000006B /* MembershipStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MembershipStore.swift; sourceTree = "<group>"; };
+		A1000000000000000000006D /* MembershipPaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MembershipPaywallView.swift; sourceTree = "<group>"; };
+		A1000000000000000000006E /* Products.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Products.storekit; sourceTree = "<group>"; };
+		A10000000000000000000091 /* ComicImageCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComicImageCache.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -106,6 +127,17 @@
 				A1000000000000000000003C /* CheckInMoment.swift */,
 				A1000000000000000000003D /* BedtimeStory.swift */,
 				A1000000000000000000003F /* SerialStory.swift */,
+				A10000000000000000000045 /* BedtimeCatalog.json */,
+				A1000000000000000000005B /* BedtimeContentCatalog.json */,
+				A1000000000000000000004B /* BedtimeAudioManifest.json */,
+				A1000000000000000000004D /* BedtimeRemoteAudio.swift */,
+				A1000000000000000000004F /* BedtimeContentCatalog.swift */,
+				A1000000000000000000006B /* MembershipStore.swift */,
+				A1000000000000000000006D /* MembershipPaywallView.swift */,
+				A10000000000000000000091 /* ComicImageCache.swift */,
+				A1000000000000000000006E /* Products.storekit */,
+				A10000000000000000000047 /* BedtimeAudioBundle */,
+				A10000000000000000000049 /* BedtimeComics */,
 				A10000000000000000000027 /* Assets.xcassets */,
 			);
 			path = EyeHaven;
@@ -179,6 +211,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000000000000000000017 /* Assets.xcassets in Resources */,
+				A10000000000000000000044 /* BedtimeCatalog.json in Resources */,
+				A1000000000000000000005A /* BedtimeContentCatalog.json in Resources */,
+				A1000000000000000000004A /* BedtimeAudioManifest.json in Resources */,
+				A10000000000000000000046 /* BedtimeAudioBundle in Resources */,
+				A10000000000000000000048 /* BedtimeComics in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -211,7 +248,12 @@
 				A10000000000000000000037 /* RestStoryPlayer.swift in Sources */,
 				A1000000000000000000003A /* CheckInMoment.swift in Sources */,
 				A1000000000000000000003E /* BedtimeStory.swift in Sources */,
+				A1000000000000000000004C /* BedtimeRemoteAudio.swift in Sources */,
+				A1000000000000000000004E /* BedtimeContentCatalog.swift in Sources */,
 				A10000000000000000000043 /* SerialStory.swift in Sources */,
+				A1000000000000000000006A /* MembershipStore.swift in Sources */,
+				A1000000000000000000006C /* MembershipPaywallView.swift in Sources */,
+				A10000000000000000000090 /* ComicImageCache.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -264,16 +306,19 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = AH6QK8YZL4;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = EyeHaven;
+				INFOPLIST_FILE = EyeHaven/Info.plist;
+				INFOPLIST_KEY_BedtimeAudioBaseURL = "https://raw.githubusercontent.com/a985962359-ship-it/EyeHaven/audio-cdn/bedtime-audio/";
+				INFOPLIST_KEY_BedtimeCatalogURL = "https://raw.githubusercontent.com/a985962359-ship-it/EyeHaven/audio-cdn/bedtime-catalog/content-catalog.json";
+				INFOPLIST_KEY_CFBundleDisplayName = "眼睛闹钟";
 				INFOPLIST_KEY_NSCameraUsageDescription = "开始使用前用前置摄像头估一次坐姿距离，画面不会保存或上传。";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UIBackgroundModes = audio;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -297,16 +342,19 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = AH6QK8YZL4;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = EyeHaven;
+				INFOPLIST_FILE = EyeHaven/Info.plist;
+				INFOPLIST_KEY_BedtimeAudioBaseURL = "https://raw.githubusercontent.com/a985962359-ship-it/EyeHaven/audio-cdn/bedtime-audio/";
+				INFOPLIST_KEY_BedtimeCatalogURL = "https://raw.githubusercontent.com/a985962359-ship-it/EyeHaven/audio-cdn/bedtime-catalog/content-catalog.json";
+				INFOPLIST_KEY_CFBundleDisplayName = "眼睛闹钟";
 				INFOPLIST_KEY_NSCameraUsageDescription = "开始使用前用前置摄像头估一次坐姿距离，画面不会保存或上传。";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UIBackgroundModes = audio;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

@@ -1,0 +1,36 @@
+眼睛闹钟 · 语音改云端听（缩小安装包）
+====================================
+
+【已经改好的】
+- App 不再打包 470MB 故事语音
+- 安装包只留坐姿提示音（几 KB）
+- 播放时从云端边下边听，并自动缓存到手机
+
+【你还要做的：开腾讯云对象存储 COS】
+1. 登录腾讯云 → 搜索「对象存储 COS」→ 创建存储桶
+   - 地域：广州 / 上海 / 北京均可（和备案服务器同区域更省事）
+   - 访问权限：建议「公有读私有写」（或私有读 + CDN，更安全但多一步）
+2. 访问管理 → API 密钥 → 新建密钥，得到 SecretId / SecretKey（只给自己看）
+3. 在电脑终端执行：
+
+   pip3 install coscmd
+   export COS_SECRET_ID=你的SecretId
+   export COS_SECRET_KEY=你的SecretKey
+   export COS_BUCKET=桶名-数字ID
+   export COS_REGION=ap-guangzhou
+   python3 /Users/song/EyeHaven/scripts/upload_bedtime_audio_cos.py
+
+4. 脚本结束会打印一行 BaseURL，例如：
+   https://xxx.cos.ap-guangzhou.myqcloud.com/bedtime-audio/
+   把这行发给我，或自己填进 Xcode 工程里两处：
+   INFOPLIST_KEY_BedtimeAudioBaseURL
+5. 重新编译装到手机
+
+【流量说明】
+- 用户听故事会消耗 COS 流量（按下载量计费，很便宜）
+- 不是轻量服务器那 200G 流量包（那是网页用的）
+- 听过的会缓存在手机，再听同一篇不重复耗流量
+
+【本地文件别删】
+电脑上 EyeHaven/BedtimeAudio 仍保留，用来上传和以后补录。
+只是不再打进 App 安装包。

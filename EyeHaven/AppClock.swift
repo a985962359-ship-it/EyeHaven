@@ -14,7 +14,8 @@ final class AppClock {
     func start() {
         guard timer == nil else { return }
         let timer = DispatchSource.makeTimerSource(queue: .main)
-        timer.schedule(deadline: .now(), repeating: .milliseconds(250), leeway: .milliseconds(50))
+        // 首页只显示「几分」，1 秒刷新足够；0.25 秒会让整页连刷，iPhone 容易卡
+        timer.schedule(deadline: .now(), repeating: .seconds(1), leeway: .milliseconds(120))
         timer.setEventHandler { [weak self] in
             self?.now = Date()
         }

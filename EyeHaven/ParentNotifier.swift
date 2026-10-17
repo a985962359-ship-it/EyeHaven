@@ -49,14 +49,27 @@ enum ParentNotifier {
         cancelRestDue()
         let delay = max(1, date.timeIntervalSinceNow)
         let minutes = max(1, Int(graceSeconds / 60))
-        let content = UNMutableNotificationContent()
-        content.title = "该休息打卡了"
-        content.body = "请打开 EyeHaven，在 \(minutes) 分钟内去休息页。"
-        content.sound = .default
-        content.interruptionLevel = .timeSensitive
+        let content = restDueContent(graceMinutes: minutes)
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: delay, repeats: false)
         let request = UNNotificationRequest(identifier: restDueId, content: content, trigger: trigger)
         UNUserNotificationCenter.current().add(request)
+    }
+
+    /// 使用时间刚到：马上弹一条（前台横幅 / 后台通知）。锁屏静默开休时不要调用。
+    static func notifyRestDueNow(graceSeconds: TimeInterval = 120) {
+        let minutes = max(1, Int(graceSeconds / 60))
+        let content = restDueContent(graceMinutes: minutes)
+        let request = UNNotificationRequest(identifier: restDueId, content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request)
+    }
+
+    private static func restDueContent(graceMinutes: Int) -> UNMutableNotificationContent {
+        let content = UNMutableNotificationContent()
+        content.title = "该休息打卡了"
+        content.body = "使用时间到了，请打开眼睛闹钟，在 \(graceMinutes) 分钟内去休息页。"
+        content.sound = .default
+        content.interruptionLevel = .timeSensitive
+        return content
     }
 
     static func scheduleMissedCheckIn(at date: Date) {
@@ -191,10 +204,21 @@ enum ParentNotifier {
         content.sound = .default
         content.interruptionLevel = .timeSensitive
         let request = UNNotificationRequest(
-            identifier: "eyehaven.quota.\(DailyReport.dayKey(for: Date()))",
+            identifier: quotaId(for: Date()),
             content: content,
             trigger: nil
         )
         UNUserNotificationCenter.current().add(request)
+    }
+
+    /// 关掉 / 切走 App 后，清掉「额度用完」提醒，避免反复催。
+    static func cancelQuotaNags() {
+        let id = quotaId(for: Date())
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [id])
+        UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [id])
+    }
+
+    private static func quotaId(for date: Date) -> String {
+        "eyehaven.quota.\(DailyReport.dayKey(for: date))"
     }
 }

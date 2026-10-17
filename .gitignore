@@ -16,3 +16,8 @@ xcuserdata/
 
 # macOS
 .DS_Store
+
+# 睡前语音（体积大，已放云端；密钥相关日志勿入库）
+睡前有声稿/_音频/
+睡前有声稿/_试听/
+EyeHaven/BedtimeAudio/

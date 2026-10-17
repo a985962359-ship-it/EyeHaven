@@ -37,7 +37,7 @@ final class DistanceChecker: NSObject {
             guard let self else { return }
             guard granted else {
                 self.isRunning = false
-                self.status = .unavailable("请在系统设置里允许 EyeHaven 使用摄像头。")
+                self.status = .unavailable("请在系统设置里允许「眼睛闹钟」使用摄像头。")
                 return
             }
             if ARFaceTrackingConfiguration.isSupported {

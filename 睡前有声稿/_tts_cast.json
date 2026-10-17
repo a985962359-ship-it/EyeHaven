@@ -1,0 +1,45 @@
+{
+  "notes": "已定音色表。提问小孩默认儿童绘本。",
+  "voices": {
+    "narr": {
+      "name": "少年梓辛",
+      "speaker": "zh_male_shaonianzixin_uranus_bigtts",
+      "resource_id": "seed-tts-2.0",
+      "speech_rate": -8,
+      "pitch_rate": 4
+    },
+    "kid": {
+      "name": "儿童绘本",
+      "speaker": "zh_female_xiaoxue_uranus_bigtts",
+      "resource_id": "seed-tts-2.0",
+      "speech_rate": -12,
+      "pitch_rate": 0
+    },
+    "teen": {
+      "name": "小何",
+      "speaker": "zh_female_xiaohe_uranus_bigtts",
+      "resource_id": "seed-tts-2.0",
+      "speech_rate": -8,
+      "pitch_rate": 0
+    },
+    "mom": {
+      "name": "暖阳女声",
+      "speaker": "zh_female_kefunvsheng_uranus_bigtts",
+      "resource_id": "seed-tts-2.0",
+      "speech_rate": -8,
+      "pitch_rate": 0
+    },
+    "dad": {
+      "name": "磁性解说男生",
+      "speaker": "zh_male_cixingjieshuonan_uranus_bigtts",
+      "resource_id": "seed-tts-2.0",
+      "speech_rate": -6,
+      "pitch_rate": 0
+    }
+  },
+  "age_kid_role": {
+    "3-6岁": "kid",
+    "7-12岁": "kid",
+    "13-15岁": "teen"
+  }
+}

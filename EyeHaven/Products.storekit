@@ -1,0 +1,110 @@
+{
+  "identifier" : "EyeHavenProducts",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+
+  ],
+  "settings" : {
+    "_applicationInternalID" : "0",
+    "_developerTeamID" : "AH6QK8YZL4",
+    "_failTransactionsEnabled" : false,
+    "_lastSynchronizedDate" : 0,
+    "_locale" : "zh_CN",
+    "_storefront" : "CHN",
+    "_storeKitErrors" : [
+
+    ]
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "21500001",
+      "localizations" : [
+        {
+          "description" : "知识更新、好听声音、每周家长报告。护眼永远免费。",
+          "displayName" : "光光知识会员",
+          "locale" : "zh_CN"
+        },
+        {
+          "description" : "Knowledge updates, nicer voice, weekly parent report. Eye-care stays free.",
+          "displayName" : "Guangguang Knowledge",
+          "locale" : "en_US"
+        }
+      ],
+      "name" : "光光知识会员",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "9.9",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "21500011",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "按月订阅知识更新、好听声音与每周报告。护眼计时永远免费。",
+              "displayName" : "知识会员（月）",
+              "locale" : "zh_CN"
+            },
+            {
+              "description" : "Monthly: knowledge updates, voice, weekly report. Eye-care free.",
+              "displayName" : "Knowledge Monthly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.eyehaven.app.sub.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "知识会员月费",
+          "subscriptionGroupID" : "21500001",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "78",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "21500012",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "按年订阅更省。知识更新、好听声音与每周报告。护眼永远免费。",
+              "displayName" : "知识会员（年）",
+              "locale" : "zh_CN"
+            },
+            {
+              "description" : "Yearly: knowledge updates, voice, weekly report. Eye-care free.",
+              "displayName" : "Knowledge Yearly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.eyehaven.app.sub.yearly",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "知识会员年费",
+          "subscriptionGroupID" : "21500001",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

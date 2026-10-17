@@ -132,7 +132,10 @@ final class RestStoryPlayer {
         isSpeaking = false
         isPaused = false
         current = nil
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        // 休息页火山配音可能正在播：关掉会话会把熄屏续播掐断
+        if !BedtimeAudioPlayer.shared.hasNowPlaying, !BedtimeAudioPlayer.shared.isPlaying {
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        }
     }
 
     fileprivate func utteranceDidFinish() {
